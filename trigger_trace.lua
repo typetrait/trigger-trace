@@ -1,4 +1,6 @@
 -- Author: alchemistis
+-- Provides functionality for rendering in-game triggers.
+-- Happy skip/glitch hunting.
 
 -- Singletons
 local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
@@ -14,6 +16,9 @@ local trigger_activate_type = 0
 local trigger_display_name = 0
 
 local dummy_transform_origin = nil
+
+local trigger_bounding_box_lower_corner_point = nil
+local trigger_bounding_box_upper_corner_point = nil
 
 local function get_component(game_object, type_name)
     local t = sdk.typeof(type_name)
@@ -47,6 +52,23 @@ local function on_pre_interact_trigger_set_activate(args)
         local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
 
         dummy_transform_origin = owner_game_object_transform:call("get_Position()")
+
+        local owner_game_object_collider = get_component(owner_game_object, "via.physics.Colliders")
+        if owner_game_object_collider == nil then
+            error("Failed to get via.physics.Colliders component for Game Object")
+        end
+
+        local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
+
+        -- trigger_bounding_box_lower_corner_point = trigger_bounding_box:call("getCenter()")
+        -- trigger_bounding_box_upper_corner_point = trigger_bounding_box:call("getCenter()")
+
+        trigger_bounding_box_lower_corner_point = trigger_bounding_box.minpos -- + dummy_transform_origin
+        trigger_bounding_box_upper_corner_point = trigger_bounding_box.maxpos -- + dummy_transform_origin
+
+        if trigger_bounding_box_lower_corner_point == nil or trigger_bounding_box_upper_corner_point == nil then
+            error("Failed to get trigger_bounding_box_lower_corner_point or trigger_bounding_box_upper_corner_point")
+        end
     end
 
     if last_trigger_target_type == 0 then
@@ -80,7 +102,22 @@ re.on_frame(function()
     draw.text("Display name: " .. trigger_display_name, 5, 65, 0xffffffff)
 
     if dummy_transform_origin ~= nil then
+        if trigger_bounding_box_lower_corner_point ~= nil and trigger_bounding_box_upper_corner_point ~= nil then
+            draw.text("minpos: <" .. trigger_bounding_box_lower_corner_point.x .. ", " .. trigger_bounding_box_lower_corner_point.y .. ", " .. trigger_bounding_box_lower_corner_point.z .. ">", 5, 80, 0xffffffff)
+            draw.text("maxpos: <" .. trigger_bounding_box_upper_corner_point.x .. ", " .. trigger_bounding_box_upper_corner_point.y .. ", " .. trigger_bounding_box_upper_corner_point.z .. ">", 5, 95, 0xffffffff)
+        
+            local v1 = draw.world_to_screen(trigger_bounding_box_lower_corner_point)
+            local v2 = draw.world_to_screen(trigger_bounding_box_upper_corner_point)
+
+            if v1 ~= nil and v2 ~= nil then
+                draw.line(v1.x, v1.y, v2.x, v2.y, 0xffffffff)
+            end
+        end
+
         draw.world_text("TRIGGER", dummy_transform_origin, 0xffffffff)
+
+        draw.world_text("+", trigger_bounding_box_lower_corner_point, 0xffffffff)
+        draw.world_text("+", trigger_bounding_box_upper_corner_point, 0xffffffff)
     end
 end)
 

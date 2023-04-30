@@ -30,6 +30,18 @@ local function get_component(game_object, type_name)
     return game_object:call("getComponent(System.Type)", t)
 end
 
+local function draw_wireframe_box(lower_corner_pos, upper_corner_pos)
+    local v1 = draw.world_to_screen(lower_corner_pos)
+    local v2 = draw.world_to_screen(upper_corner_pos)
+
+    if v1 ~= nil and v2 ~= nil then
+        draw.line(v1.x, v1.y, v1.x, v2.y, 0xffffff)
+        draw.line(v1.x, v2.y, v2.x, v2.y, 0xffffff)
+        draw.line(v2.x, v2.y, v2.x, v1.y, 0xffffff)
+        draw.line(v2.x, v1.y, v1.x, v1.y, 0xffffff)
+    end
+end
+
 -- activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)
 local function on_pre_interact_trigger_set_activate(args)
     -- args[5] should be of type "chainsaw.InteractTrigger.TargetType"
@@ -111,6 +123,74 @@ re.on_frame(function()
 
             if v1 ~= nil and v2 ~= nil then
                 draw.line(v1.x, v1.y, v2.x, v2.y, 0xffffffff)
+
+                -- draw_wireframe_box(trigger_bounding_box_lower_corner_point, trigger_bounding_box_upper_corner_point)
+
+                -- Move to separate function
+                -- local v1a = draw.world_to_screen(trigger_bounding_box_lower_corner_point)
+                -- local v2b = draw.world_to_screen(trigger_bounding_box_upper_corner_point)
+            
+                local lower = trigger_bounding_box_lower_corner_point
+                local upper = trigger_bounding_box_upper_corner_point
+
+                local front_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, lower.z))
+                local front_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, lower.z))
+                local front_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, lower.z))
+                local front_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, lower.z))
+
+                local back_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, upper.z))
+                local back_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, upper.z))
+                local back_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, upper.z))
+                local back_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, upper.z))
+
+                    -- draw.line(v1a.x, v1a.y, v1a.x, v2b.y, 0xff0000ff)
+                    -- draw.line(v1a.x, v2b.y, v2b.x, v2b.y, 0xff0000ff)
+                    -- draw.line(v2b.x, v2b.y, v2b.x, v1a.y, 0xff0000ff)
+                    -- draw.line(v2b.x, v1a.y, v1a.x, v1a.y, 0xff0000ff)
+
+                -- Front face
+                if front_face_vertex1 ~= nil and front_face_vertex2 ~= nil then
+                    draw.line(front_face_vertex1.x, front_face_vertex1.y, front_face_vertex2.x, front_face_vertex2.y, 0xff0000ff)
+                end
+                if front_face_vertex2 ~= nil and front_face_vertex3 ~= nil then
+                    draw.line(front_face_vertex2.x, front_face_vertex2.y, front_face_vertex3.x, front_face_vertex3.y, 0xff0000ff)
+                end
+                if front_face_vertex3 ~= nil and front_face_vertex4 ~= nil then
+                    draw.line(front_face_vertex3.x, front_face_vertex3.y, front_face_vertex4.x, front_face_vertex4.y, 0xff0000ff)
+                end
+                if front_face_vertex4 ~= nil and front_face_vertex1 ~= nil then
+                    draw.line(front_face_vertex4.x, front_face_vertex4.y, front_face_vertex1.x, front_face_vertex1.y, 0xff0000ff)
+                end
+
+                -- Back face
+                if back_face_vertex1 ~= nil and back_face_vertex2 ~= nil then
+                    draw.line(back_face_vertex1.x, back_face_vertex1.y, back_face_vertex2.x, back_face_vertex2.y, 0xff0000ff)
+                end
+                if back_face_vertex2 ~= nil and back_face_vertex3 ~= nil then
+                    draw.line(back_face_vertex2.x, back_face_vertex2.y, back_face_vertex3.x, back_face_vertex3.y, 0xff0000ff)
+                end
+                if back_face_vertex3 ~= nil and back_face_vertex4 ~= nil then
+                    draw.line(back_face_vertex3.x, back_face_vertex3.y, back_face_vertex4.x, back_face_vertex4.y, 0xff0000ff)
+                end
+                if back_face_vertex4 ~= nil and back_face_vertex1 ~= nil then
+                    draw.line(back_face_vertex4.x, back_face_vertex4.y, back_face_vertex1.x, back_face_vertex1.y, 0xff0000ff)
+                end
+
+
+                -- Connecting lines
+                if back_face_vertex1 ~= nil and back_face_vertex2 ~= nil then
+                    draw.line(front_face_vertex1.x, front_face_vertex1.y, back_face_vertex1.x, back_face_vertex1.y, 0xff0000ff)
+                end
+                if back_face_vertex2 ~= nil and back_face_vertex3 ~= nil then
+                    draw.line(front_face_vertex2.x, front_face_vertex2.y, back_face_vertex2.x, back_face_vertex2.y, 0xff0000ff)
+                end
+                if back_face_vertex3 ~= nil and back_face_vertex4 ~= nil then
+                    draw.line(front_face_vertex3.x, front_face_vertex3.y, back_face_vertex3.x, back_face_vertex3.y, 0xff0000ff)
+                end
+                if back_face_vertex4 ~= nil and back_face_vertex1 ~= nil then
+                    draw.line(front_face_vertex4.x, front_face_vertex4.y, back_face_vertex4.x, back_face_vertex4.y, 0xff0000ff)
+                end
+                -- /Move to separate function
             end
         end
 

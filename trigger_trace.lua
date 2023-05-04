@@ -166,10 +166,19 @@ re.on_frame(function()
             end
         end
         
-        -- draw.world_text("TRIGGER", dummy_transform_origin, 0xffffffff)
-        draw.world_text("TRIGGER", trigger_bounding_box_center, 0xffffffff)
-        draw.world_text("+", trigger_bounding_box_lower_corner_point, 0xffffffff)
-        draw.world_text("+", trigger_bounding_box_upper_corner_point, 0xffffffff)
+        if trigger_bounding_box_center ~= nil then
+            local trigger_label = "TRIGGER (" .. trigger_display_name .. ")"
+
+            local trigger_label_pos = draw.world_to_screen(trigger_bounding_box_center)
+            local trigger_text_bounds = imgui.calc_text_size(trigger_label)
+
+            if (trigger_label_pos ~= nil) then
+                draw.text(trigger_label, trigger_label_pos.x - (trigger_text_bounds.x / 2), trigger_label_pos.y, 0xffffffff)
+            end
+
+            draw.world_text("+", trigger_bounding_box_lower_corner_point, 0xffffffff)
+            draw.world_text("+", trigger_bounding_box_upper_corner_point, 0xffffffff)
+        end
     end
 end)
 

@@ -17,6 +17,7 @@ local trigger_display_name = 0
 
 local dummy_transform_origin = nil
 
+local trigger_bounding_box_center = nil
 local trigger_bounding_box_lower_corner_point = nil
 local trigger_bounding_box_upper_corner_point = nil
 
@@ -74,16 +75,16 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
         end
 
         -- Connecting lines
-        if back_face_vertex1 ~= nil and back_face_vertex2 ~= nil then
+        if front_face_vertex1 ~= nil and back_face_vertex1 ~= nil then
             draw.line(front_face_vertex1.x, front_face_vertex1.y, back_face_vertex1.x, back_face_vertex1.y, color)
         end
-        if back_face_vertex2 ~= nil and back_face_vertex3 ~= nil then
+        if front_face_vertex2 ~= nil and back_face_vertex2 ~= nil then
             draw.line(front_face_vertex2.x, front_face_vertex2.y, back_face_vertex2.x, back_face_vertex2.y, color)
         end
-        if back_face_vertex3 ~= nil and back_face_vertex4 ~= nil then
+        if front_face_vertex3 ~= nil and back_face_vertex3 ~= nil then
             draw.line(front_face_vertex3.x, front_face_vertex3.y, back_face_vertex3.x, back_face_vertex3.y, color)
         end
-        if back_face_vertex4 ~= nil and back_face_vertex1 ~= nil then
+        if front_face_vertex4 ~= nil and back_face_vertex4 ~= nil then
             draw.line(front_face_vertex4.x, front_face_vertex4.y, back_face_vertex4.x, back_face_vertex4.y, color)
         end
     end
@@ -119,7 +120,7 @@ local function on_pre_interact_trigger_set_activate(args)
 
         local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
 
-        -- local trigger_bounding_box_center = trigger_bounding_box:call("getCenter()")
+        trigger_bounding_box_center = trigger_bounding_box:call("getCenter()")
 
         trigger_bounding_box_lower_corner_point = trigger_bounding_box.minpos
         trigger_bounding_box_upper_corner_point = trigger_bounding_box.maxpos
@@ -165,7 +166,8 @@ re.on_frame(function()
             end
         end
         
-        draw.world_text("TRIGGER", dummy_transform_origin, 0xffffffff)
+        -- draw.world_text("TRIGGER", dummy_transform_origin, 0xffffffff)
+        draw.world_text("TRIGGER", trigger_bounding_box_center, 0xffffffff)
         draw.world_text("+", trigger_bounding_box_lower_corner_point, 0xffffffff)
         draw.world_text("+", trigger_bounding_box_upper_corner_point, 0xffffffff)
     end

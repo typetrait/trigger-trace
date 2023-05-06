@@ -5,6 +5,10 @@
 -- Singletons
 local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
 
+-- Config
+local should_render_triggers = true
+local should_render_debug_info = false
+
 -- Variables
 local area_hit_count = 0
 local last_trigger_target_type = 0
@@ -146,17 +150,26 @@ sdk.hook(sdk.find_type_definition("chainsaw.InteractManager"):get_method("activa
     on_post_interact_trigger_set_activate)
 
 re.on_frame(function()
-    draw.text("Area Hit count: " .. area_hit_count, 5, 5, 0xffffffff)
-    draw.text("Trigger Target Type: " .. last_trigger_target_type, 5, 20, 0xffffffff)
-    draw.text("IEnumerable<chainsaw.InteractTriggerActivated> count: " .. trigger_count, 5, 35, 0xffffffff)
-    draw.text("chainsaw.InteractTriggerActivated.Activate: " .. trigger_activate_type, 5, 50, 0xffffffff)
-    draw.text("Display name: " .. trigger_display_name, 5, 65, 0xffffffff)
+    if should_render_debug_info then
+        draw.text("Area Hit count: " .. area_hit_count, 5, 5, 0xffffffff)
+        draw.text("Trigger Target Type: " .. last_trigger_target_type, 5, 20, 0xffffffff)
+        draw.text("IEnumerable<chainsaw.InteractTriggerActivated> count: " .. trigger_count, 5, 35, 0xffffffff)
+        draw.text("chainsaw.InteractTriggerActivated.Activate: " .. trigger_activate_type, 5, 50, 0xffffffff)
+        draw.text("Display name: " .. trigger_display_name, 5, 65, 0xffffffff)
+    end
+
+    if not should_render_triggers then
+        return
+    end
 
     if dummy_transform_origin ~= nil then
         if trigger_bounding_box_lower_corner_point ~= nil and trigger_bounding_box_upper_corner_point ~= nil then
-            draw.text("minpos: <" .. trigger_bounding_box_lower_corner_point.x .. ", " .. trigger_bounding_box_lower_corner_point.y .. ", " .. trigger_bounding_box_lower_corner_point.z .. ">", 5, 80, 0xffffffff)
-            draw.text("maxpos: <" .. trigger_bounding_box_upper_corner_point.x .. ", " .. trigger_bounding_box_upper_corner_point.y .. ", " .. trigger_bounding_box_upper_corner_point.z .. ">", 5, 95, 0xffffffff)
-        
+
+            if should_render_debug_info then
+                draw.text("minpos: <" .. trigger_bounding_box_lower_corner_point.x .. ", " .. trigger_bounding_box_lower_corner_point.y .. ", " .. trigger_bounding_box_lower_corner_point.z .. ">", 5, 80, 0xffffffff)
+                draw.text("maxpos: <" .. trigger_bounding_box_upper_corner_point.x .. ", " .. trigger_bounding_box_upper_corner_point.y .. ", " .. trigger_bounding_box_upper_corner_point.z .. ">", 5, 95, 0xffffffff)
+            end
+
             local v1 = draw.world_to_screen(trigger_bounding_box_lower_corner_point)
             local v2 = draw.world_to_screen(trigger_bounding_box_upper_corner_point)
 
@@ -184,8 +197,22 @@ end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
-        imgui.text("Area Hit count: " .. area_hit_count)
-        imgui.text("Trigger Target Type: " .. last_trigger_target_type)
-        imgui.text("Display name: " .. trigger_display_name)
+        changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
+
+        if imgui.tree_node("Debug") then
+            changed, should_render_debug_info = imgui.checkbox("Display Debug Info", should_render_debug_info)
+
+            if should_render_debug_info then
+                imgui.text("Area Hit count: " .. area_hit_count)
+                imgui.text("Trigger Target Type: " .. last_trigger_target_type)
+                imgui.text("Display name: " .. trigger_display_name)
+            end
+
+            imgui.tree_pop()
+        end
+
+        imgui.tree_pop()
     end
+
+    imgui.spacing()
 end)

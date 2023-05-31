@@ -37,8 +37,7 @@ function Trigger:equals(other)
     return self.name == other.name and self.aabb.minpos == other.aabb.minpos and self.aabb.maxpos == other.aabb.maxpos
 end
 
---
-
+-- Helper functions
 local function entry_exists(table, entry)
     for _, e in ipairs(table) do
         if e:equals(entry) then
@@ -46,6 +45,12 @@ local function entry_exists(table, entry)
         end
     end
     return false
+end
+
+local function clear_table(t)
+    for k in pairs(t) do
+        t[k] = nil
+    end
 end
 
 local function get_component(game_object, type_name)
@@ -158,7 +163,8 @@ local function on_pre_interact_trigger_set_activate(args)
         local current_trigger_activated = sdk.to_managed_object(enumerator:call("get_Current()"))
         local trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
 
-        local trigger_display_name = current_trigger_activated:call("get_DisplayName()")
+        -- local trigger_display_name = current_trigger_activated:call("get_DisplayName()")
+        local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. tostring(sdk.to_int64(current_trigger_activated:call("get_Type()")))
 
         local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
         local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
@@ -184,11 +190,47 @@ local function on_post_interact_trigger_set_activate(ret)
     return ret
 end
 
+local function on_pre_trigger_generate_work(args)
+    local current_trigger_activated = sdk.to_managed_object(args[2])
+    local trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
+
+    local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. tostring(sdk.to_int64(current_trigger_activated:call("get_Type()")))
+
+    local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
+    local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
+
+    local owner_game_object_collider = get_component(owner_game_object, "via.physics.Colliders")
+    if owner_game_object_collider == nil then
+        error("Failed to get via.physics.Colliders component for Game Object")
+    end
+
+    local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
+    if trigger_bounding_box.minpos == nil or trigger_bounding_box.maxpos == nil then
+        error("Failed to get trigger_bounding_box.minpos or trigger_bounding_box.maxpos")
+    end
+
+    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box)
+    if not entry_exists(previously_hit_triggers, trigger) then
+        table.insert(previously_hit_triggers, trigger)
+    end
+end
+
+local function on_post_trigger_generate_work(ret)
+    return ret
+end
+
 -- sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("set_Activate(chainsaw.InteractTriggerActivated.ActivateType)"),
--- sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerAreaHit"):get_method("get_Type()"),
-sdk.hook(sdk.find_type_definition("chainsaw.InteractManager"):get_method("activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)"),
-    on_pre_interact_trigger_set_activate,
-    on_post_interact_trigger_set_activate)
+-- sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerAreaHit"):get_method("get_Type()")
+
+-- chainsaw.InteractManager.activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)
+-- sdk.hook(sdk.find_type_definition("chainsaw.InteractManager"):get_method("activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)"),
+--     on_pre_interact_trigger_set_activate,
+--     on_post_interact_trigger_set_activate)
+
+-- chainsaw.InteractTriggerActivated.generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)
+sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)"),
+    on_pre_trigger_generate_work,
+    on_post_trigger_generate_work)
 
 re.on_frame(function()
     if not should_render_triggers then
@@ -216,6 +258,10 @@ re.on_draw_ui(function()
                 changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
             end
             imgui.end_list_box()
+        end
+
+        if imgui.button("Clear") then 
+            clear_table(previously_hit_triggers)
         end
 
         if imgui.tree_node("Debug") then

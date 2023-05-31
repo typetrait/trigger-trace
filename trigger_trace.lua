@@ -5,6 +5,10 @@
 -- Singletons
 local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
 
+-- "Constants"
+local COLOR_RED = 0xff0000ff
+local COLOR_WHITE = 0xffffffff
+
 -- Config
 local should_render_triggers = true
 local should_render_debug_info = false
@@ -12,18 +16,35 @@ local should_render_debug_info = false
 -- Variables
 local area_hit_count = 0
 local last_trigger_target_type = 0
-
-local trigger_count = 0
-
 local trigger_activate_type = 0
 
-local trigger_display_name = 0
+-- Trigger definitions
+local previously_hit_triggers = {}
 
-local dummy_transform_origin = nil
+local Trigger = {}
+Trigger.__index = Trigger
 
-local trigger_bounding_box_center = nil
-local trigger_bounding_box_lower_corner_point = nil
-local trigger_bounding_box_upper_corner_point = nil
+function Trigger.new(name, aabb)
+    local self = setmetatable({}, Trigger)
+    self.name = name
+    self.aabb = aabb
+    return self
+end
+
+function Trigger:equals(other)
+    return self.name == other.name and self.aabb.minpos == other.aabb.minpos and self.aabb.maxpos == other.aabb.maxpos
+end
+
+--
+
+local function entry_exists(table, entry)
+    for _, e in ipairs(table) do
+        if e:equals(entry) then
+            return true
+        end
+    end
+    return false
+end
 
 local function get_component(game_object, type_name)
     local t = sdk.typeof(type_name)
@@ -94,6 +115,34 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
     end
 end
 
+local function render_trigger(trigger)
+    if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
+        local v1 = draw.world_to_screen(trigger.aabb.minpos)
+        local v2 = draw.world_to_screen(trigger.aabb.maxpos)
+
+        if v1 ~= nil and v2 ~= nil then
+            draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
+            draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, COLOR_RED)
+        end
+
+        aabb_center = trigger.aabb:call("getCenter()")
+
+        if aabb_center ~= nil then
+            local name_label = "TRIGGER (" .. trigger.name .. ")"
+    
+            local name_label_pos = draw.world_to_screen(aabb_center)
+            local name_label_bounds = imgui.calc_text_size(name_label)
+    
+            if (name_label_pos ~= nil) then
+                draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+            end
+    
+            draw.world_text("+", trigger.aabb.minpos, COLOR_WHITE)
+            draw.world_text("+", trigger.aabb.maxpos, COLOR_WHITE)
+        end
+    end
+end
+
 -- activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)
 local function on_pre_interact_trigger_set_activate(args)
     -- args[6] should be of type "chainsaw.InteractTrigger.TargetType"
@@ -103,19 +152,14 @@ local function on_pre_interact_trigger_set_activate(args)
     local triggers = sdk.to_managed_object(args[7]) -- IEnumerable<chainsaw.InteractTriggerActivated>
     local enumerator = sdk.to_managed_object(triggers:call("GetEnumerator()"))
 
-    trigger_count = 0
     while enumerator:call("MoveNext()") do
-        trigger_count = trigger_count + 1
-
         local current_trigger_activated = sdk.to_managed_object(enumerator:call("get_Current()"))
-        trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
+        local trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
 
-        trigger_display_name = current_trigger_activated:call("get_DisplayName()")
+        local trigger_display_name = current_trigger_activated:call("get_DisplayName()")
 
         local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
         local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
-
-        dummy_transform_origin = owner_game_object_transform:call("get_Position()")
 
         local owner_game_object_collider = get_component(owner_game_object, "via.physics.Colliders")
         if owner_game_object_collider == nil then
@@ -123,14 +167,14 @@ local function on_pre_interact_trigger_set_activate(args)
         end
 
         local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
+        if trigger_bounding_box.minpos == nil or trigger_bounding_box.maxpos == nil then
+            error("Failed to get trigger_bounding_box.minpos or trigger_bounding_box.maxpos")
+        end
 
-        trigger_bounding_box_center = trigger_bounding_box:call("getCenter()")
+        local trigger = Trigger.new(trigger_display_name, trigger_bounding_box)
 
-        trigger_bounding_box_lower_corner_point = trigger_bounding_box.minpos
-        trigger_bounding_box_upper_corner_point = trigger_bounding_box.maxpos
-
-        if trigger_bounding_box_lower_corner_point == nil or trigger_bounding_box_upper_corner_point == nil then
-            error("Failed to get trigger_bounding_box_lower_corner_point or trigger_bounding_box_upper_corner_point")
+        if not entry_exists(previously_hit_triggers, trigger) then
+            table.insert(previously_hit_triggers, trigger)
         end
     end
 
@@ -150,48 +194,12 @@ sdk.hook(sdk.find_type_definition("chainsaw.InteractManager"):get_method("activa
     on_post_interact_trigger_set_activate)
 
 re.on_frame(function()
-    if should_render_debug_info then
-        draw.text("Area Hit count: " .. area_hit_count, 5, 5, 0xffffffff)
-        draw.text("Trigger Target Type: " .. last_trigger_target_type, 5, 20, 0xffffffff)
-        draw.text("IEnumerable<chainsaw.InteractTriggerActivated> count: " .. trigger_count, 5, 35, 0xffffffff)
-        draw.text("chainsaw.InteractTriggerActivated.Activate: " .. trigger_activate_type, 5, 50, 0xffffffff)
-        draw.text("Display name: " .. trigger_display_name, 5, 65, 0xffffffff)
-    end
-
     if not should_render_triggers then
         return
     end
 
-    if dummy_transform_origin ~= nil then
-        if trigger_bounding_box_lower_corner_point ~= nil and trigger_bounding_box_upper_corner_point ~= nil then
-
-            if should_render_debug_info then
-                draw.text("minpos: <" .. trigger_bounding_box_lower_corner_point.x .. ", " .. trigger_bounding_box_lower_corner_point.y .. ", " .. trigger_bounding_box_lower_corner_point.z .. ">", 5, 80, 0xffffffff)
-                draw.text("maxpos: <" .. trigger_bounding_box_upper_corner_point.x .. ", " .. trigger_bounding_box_upper_corner_point.y .. ", " .. trigger_bounding_box_upper_corner_point.z .. ">", 5, 95, 0xffffffff)
-            end
-
-            local v1 = draw.world_to_screen(trigger_bounding_box_lower_corner_point)
-            local v2 = draw.world_to_screen(trigger_bounding_box_upper_corner_point)
-
-            if v1 ~= nil and v2 ~= nil then
-                draw.line(v1.x, v1.y, v2.x, v2.y, 0xffffffff)
-                draw_wireframe_box(trigger_bounding_box_lower_corner_point, trigger_bounding_box_upper_corner_point, 0xff0000ff)
-            end
-        end
-        
-        if trigger_bounding_box_center ~= nil then
-            local trigger_label = "TRIGGER (" .. trigger_display_name .. ")"
-
-            local trigger_label_pos = draw.world_to_screen(trigger_bounding_box_center)
-            local trigger_text_bounds = imgui.calc_text_size(trigger_label)
-
-            if (trigger_label_pos ~= nil) then
-                draw.text(trigger_label, trigger_label_pos.x - (trigger_text_bounds.x / 2), trigger_label_pos.y, 0xffffffff)
-            end
-
-            draw.world_text("+", trigger_bounding_box_lower_corner_point, 0xffffffff)
-            draw.world_text("+", trigger_bounding_box_upper_corner_point, 0xffffffff)
-        end
+    for i,t in ipairs(previously_hit_triggers) do
+        render_trigger(t)
     end
 end)
 
@@ -201,13 +209,6 @@ re.on_draw_ui(function()
 
         if imgui.tree_node("Debug") then
             changed, should_render_debug_info = imgui.checkbox("Display Debug Info", should_render_debug_info)
-
-            if should_render_debug_info then
-                imgui.text("Area Hit count: " .. area_hit_count)
-                imgui.text("Trigger Target Type: " .. last_trigger_target_type)
-                imgui.text("Display name: " .. trigger_display_name)
-            end
-
             imgui.tree_pop()
         end
 

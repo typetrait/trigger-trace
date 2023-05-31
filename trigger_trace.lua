@@ -16,7 +16,6 @@ local should_render_debug_info = false
 -- Variables
 local trigger_color = COLOR_RED
 
-local area_hit_count = 0
 local last_trigger_target_type = 0
 local trigger_activate_type = 0
 
@@ -30,6 +29,7 @@ function Trigger.new(name, aabb)
     local self = setmetatable({}, Trigger)
     self.name = name
     self.aabb = aabb
+    self.draw = true
     return self
 end
 
@@ -174,14 +174,9 @@ local function on_pre_interact_trigger_set_activate(args)
         end
 
         local trigger = Trigger.new(trigger_display_name, trigger_bounding_box)
-
         if not entry_exists(previously_hit_triggers, trigger) then
             table.insert(previously_hit_triggers, trigger)
         end
-    end
-
-    if last_trigger_target_type == 0 then
-        area_hit_count = area_hit_count + 1
     end
 end
 
@@ -201,15 +196,27 @@ re.on_frame(function()
     end
 
     for i,t in ipairs(previously_hit_triggers) do
-        render_trigger(t, trigger_color)
+        if t.draw then
+            render_trigger(t, trigger_color)
+        end
     end
 end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
-
         changed, trigger_color = imgui.color_picker("Trigger color", trigger_color)
+
+        imgui.spacing();
+        imgui.spacing();
+        imgui.spacing();
+
+        if imgui.begin_list_box("Triggers") then
+            for i,t in ipairs(previously_hit_triggers) do
+                changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
+            end
+            imgui.end_list_box()
+        end
 
         if imgui.tree_node("Debug") then
             changed, should_render_debug_info = imgui.checkbox("Display Debug Info", should_render_debug_info)

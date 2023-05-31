@@ -14,6 +14,8 @@ local should_render_triggers = true
 local should_render_debug_info = false
 
 -- Variables
+local trigger_color = COLOR_RED
+
 local area_hit_count = 0
 local last_trigger_target_type = 0
 local trigger_activate_type = 0
@@ -115,14 +117,14 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
     end
 end
 
-local function render_trigger(trigger)
+local function render_trigger(trigger, color)
     if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
         local v1 = draw.world_to_screen(trigger.aabb.minpos)
         local v2 = draw.world_to_screen(trigger.aabb.maxpos)
 
         if v1 ~= nil and v2 ~= nil then
             draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
-            draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, COLOR_RED)
+            draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, color)
         end
 
         aabb_center = trigger.aabb:call("getCenter()")
@@ -199,13 +201,15 @@ re.on_frame(function()
     end
 
     for i,t in ipairs(previously_hit_triggers) do
-        render_trigger(t)
+        render_trigger(t, trigger_color)
     end
 end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
+
+        changed, trigger_color = imgui.color_picker("Trigger color", trigger_color)
 
         if imgui.tree_node("Debug") then
             changed, should_render_debug_info = imgui.checkbox("Display Debug Info", should_render_debug_info)

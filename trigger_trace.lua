@@ -12,6 +12,10 @@ local COLOR_WHITE = 0xffffffff
 -- Config
 local should_render_triggers = true
 local should_render_debug_info = false
+local trigger_type_filter_map = {
+    ["InteractTriggerAreaHit"] = true,
+    ["InteractTriggerKey"] = false
+}
 
 -- Variables
 local trigger_color = COLOR_RED
@@ -25,10 +29,11 @@ local previously_hit_triggers = {}
 local Trigger = {}
 Trigger.__index = Trigger
 
-function Trigger.new(name, aabb)
+function Trigger.new(name, aabb, type)
     local self = setmetatable({}, Trigger)
     self.name = name
     self.aabb = aabb
+    self.type = type
     self.draw = true
     return self
 end
@@ -150,51 +155,16 @@ local function render_trigger(trigger, color)
     end
 end
 
--- activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)
-local function on_pre_interact_trigger_set_activate(args)
-    -- args[6] should be of type "chainsaw.InteractTrigger.TargetType"
-    -- 0 means TargetType.Pl00, probably player character?
-    last_trigger_target_type = sdk.to_int64(args[6])
-
-    local triggers = sdk.to_managed_object(args[7]) -- IEnumerable<chainsaw.InteractTriggerActivated>
-    local enumerator = sdk.to_managed_object(triggers:call("GetEnumerator()"))
-
-    while enumerator:call("MoveNext()") do
-        local current_trigger_activated = sdk.to_managed_object(enumerator:call("get_Current()"))
-        local trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
-
-        -- local trigger_display_name = current_trigger_activated:call("get_DisplayName()")
-        local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. tostring(sdk.to_int64(current_trigger_activated:call("get_Type()")))
-
-        local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
-        local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
-
-        local owner_game_object_collider = get_component(owner_game_object, "via.physics.Colliders")
-        if owner_game_object_collider == nil then
-            error("Failed to get via.physics.Colliders component for Game Object")
-        end
-
-        local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
-        if trigger_bounding_box.minpos == nil or trigger_bounding_box.maxpos == nil then
-            error("Failed to get trigger_bounding_box.minpos or trigger_bounding_box.maxpos")
-        end
-
-        local trigger = Trigger.new(trigger_display_name, trigger_bounding_box)
-        if not entry_exists(previously_hit_triggers, trigger) then
-            table.insert(previously_hit_triggers, trigger)
-        end
-    end
-end
-
-local function on_post_interact_trigger_set_activate(ret)
-    return ret
+-- Additional functions
+local function config_allows_trigger_type(type)
+    return trigger_type_filter_map[type] ~= nil and trigger_type_filter_map[type]
 end
 
 local function on_pre_trigger_generate_work(args)
     local current_trigger_activated = sdk.to_managed_object(args[2])
-    local trigger_activate_type = current_trigger_activated:get_type_definition():get_name()
+    local trigger_runtime_type = current_trigger_activated:get_type_definition():get_name()
 
-    local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. trigger_activate_type
+    local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. trigger_runtime_type
 
     local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
     local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
@@ -209,7 +179,7 @@ local function on_pre_trigger_generate_work(args)
         error("Failed to get trigger_bounding_box.minpos or trigger_bounding_box.maxpos")
     end
 
-    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box)
+    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
     if not entry_exists(previously_hit_triggers, trigger) then
         table.insert(previously_hit_triggers, trigger)
     end
@@ -230,7 +200,7 @@ re.on_frame(function()
     end
 
     for i,t in ipairs(previously_hit_triggers) do
-        if t.draw then
+        if config_allows_trigger_type(t.type) and t.draw then
             render_trigger(t, trigger_color)
         end
     end
@@ -239,7 +209,9 @@ end)
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
-        changed, trigger_color = imgui.color_picker("Trigger color", trigger_color)
+
+        changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
+        changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
 
         imgui.spacing();
         imgui.spacing();
@@ -255,6 +227,11 @@ re.on_draw_ui(function()
 
         if imgui.button("Clear") then 
             clear_table(previously_hit_triggers)
+        end
+
+        if imgui.tree_node("Visuals") then
+            changed, trigger_color = imgui.color_picker("Trigger color", trigger_color)
+            imgui.tree_pop()
         end
 
         if imgui.tree_node("Debug") then

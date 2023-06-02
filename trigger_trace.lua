@@ -192,9 +192,9 @@ end
 
 local function on_pre_trigger_generate_work(args)
     local current_trigger_activated = sdk.to_managed_object(args[2])
-    local trigger_activate_type = sdk.to_int64(current_trigger_activated:call("get_Activate()"))
+    local trigger_activate_type = current_trigger_activated:get_type_definition():get_name()
 
-    local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. tostring(sdk.to_int64(current_trigger_activated:call("get_Type()")))
+    local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. trigger_activate_type
 
     local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
     local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
@@ -218,14 +218,6 @@ end
 local function on_post_trigger_generate_work(ret)
     return ret
 end
-
--- sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("set_Activate(chainsaw.InteractTriggerActivated.ActivateType)"),
--- sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerAreaHit"):get_method("get_Type()")
-
--- chainsaw.InteractManager.activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)
--- sdk.hook(sdk.find_type_definition("chainsaw.InteractManager"):get_method("activateHitArea(via.GameObject, chainsaw.collision.GimmickSensorUserData, chainsaw.InteractManager.WorkIndex, chainsaw.InteractTrigger.TargetType, System.Collections.Generic.IEnumerable`1<chainsaw.InteractTriggerActivated>)"),
---     on_pre_interact_trigger_set_activate,
---     on_post_interact_trigger_set_activate)
 
 -- chainsaw.InteractTriggerActivated.generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)
 sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)"),
@@ -253,10 +245,11 @@ re.on_draw_ui(function()
         imgui.spacing();
         imgui.spacing();
 
-        if imgui.begin_list_box("Triggers") then
+        if imgui.begin_list_box("Triggers hit") then
             for i,t in ipairs(previously_hit_triggers) do
                 changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
             end
+
             imgui.end_list_box()
         end
 

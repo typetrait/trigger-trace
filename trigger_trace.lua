@@ -24,7 +24,7 @@ local trigger_color = COLOR_RED
 -- Debug
 local debug_game_objects = {}
 local contact_count = 0
-local bongas = nil
+local current_trigger_shape = ""
 
 -- Trigger definitions
 local previously_hit_triggers = {}
@@ -32,17 +32,17 @@ local previously_hit_triggers = {}
 local Trigger = {}
 Trigger.__index = Trigger
 
-function Trigger.new(name, aabb, type)
+function Trigger.new(name, obb, type)
     local self = setmetatable({}, Trigger)
     self.name = name
-    self.aabb = aabb
+    self.obb = obb
     self.type = type
     self.draw = true
     return self
 end
 
 function Trigger:equals(other)
-    return self.name == other.name and self.aabb.minpos == other.aabb.minpos and self.aabb.maxpos == other.aabb.maxpos
+    return self.name == other.name and self.obb == other.obb
 end
 
 -- Helper functions
@@ -141,32 +141,110 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
 end
 
 local function render_trigger(trigger, color)
-    if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
-        local v1 = draw.world_to_screen(trigger.aabb.minpos)
-        local v2 = draw.world_to_screen(trigger.aabb.maxpos)
+    if trigger.obb == nil then
+        return
+    end
 
-        if v1 ~= nil and v2 ~= nil then
-            draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
-            draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, color)
-        end
+    local pos = trigger.obb:call("get_Position")
+    local extent = trigger.obb:call("get_Extent")
+    local rotation = trigger.obb:call("get_RotateAngle")
 
-        aabb_center = trigger.aabb:call("getCenter()")
+    local name_label = "TRIGGER (" .. trigger.name .. ")"
+    
+    local name_label_pos = draw.world_to_screen(pos)
+    local name_label_bounds = imgui.calc_text_size(name_label)
 
-        if aabb_center ~= nil then
-            local name_label = "TRIGGER (" .. trigger.name .. ")"
-    
-            local name_label_pos = draw.world_to_screen(aabb_center)
-            local name_label_bounds = imgui.calc_text_size(name_label)
-    
-            if (name_label_pos ~= nil) then
-                draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
-            end
-    
-            draw.world_text("+", trigger.aabb.minpos, COLOR_WHITE)
-            draw.world_text("+", trigger.aabb.maxpos, COLOR_WHITE)
-        end
+    if (name_label_pos ~= nil) then
+        draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+    end
+
+    local corners = {
+        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y - extent.y, pos.z - extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y - extent.y, pos.z - extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y + extent.y, pos.z - extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y + extent.y, pos.z - extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y - extent.y, pos.z + extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y - extent.y, pos.z + extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y + extent.y, pos.z + extent.z)),
+        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y + extent.y, pos.z + extent.z))
+    }
+
+    if corners[1] ~= nil and corners[2] ~= nil then
+        draw.line(corners[1].x, corners[1].y, corners[2].x, corners[2].y, color)
+    end
+
+    if corners[1] ~= nil and corners[3] ~= nil then
+        draw.line(corners[1].x, corners[1].y, corners[3].x, corners[3].y, color)
+    end
+
+    if corners[1] ~= nil and corners[5] ~= nil then
+        draw.line(corners[1].x, corners[1].y, corners[5].x, corners[5].y, color)
+    end
+
+    if corners[2] ~= nil and corners[4] ~= nil then
+        draw.line(corners[2].x, corners[2].y, corners[4].x, corners[4].y, color)
+    end
+
+    if corners[2] ~= nil and corners[6] ~= nil then
+        draw.line(corners[2].x, corners[2].y, corners[6].x, corners[6].y, color)
+    end
+
+    if corners[3] ~= nil and corners[4] ~= nil then
+        draw.line(corners[3].x, corners[3].y, corners[4].x, corners[4].y, color)
+    end
+
+    if corners[3] ~= nil and corners[7] ~= nil then
+        draw.line(corners[3].x, corners[3].y, corners[7].x, corners[7].y, color)
+    end
+
+    if corners[4] ~= nil and corners[8] ~= nil then
+        draw.line(corners[4].x, corners[4].y, corners[8].x, corners[8].y, color)
+    end
+
+    if corners[5] ~= nil and corners[6] ~= nil then
+        draw.line(corners[5].x, corners[5].y, corners[6].x, corners[6].y, color)
+    end
+
+    if corners[5] ~= nil and corners[7] ~= nil then
+        draw.line(corners[5].x, corners[5].y, corners[7].x, corners[7].y, color)
+    end
+
+    if corners[6] ~= nil and corners[8] ~= nil then
+        draw.line(corners[6].x, corners[6].y, corners[8].x, corners[8].y, color)
+    end
+
+    if corners[7] ~= nil and corners[8] ~= nil then
+        draw.line(corners[7].x, corners[7].y, corners[8].x, corners[8].y, color)
     end
 end
+
+-- local function render_trigger(trigger, color)
+--     if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
+--         local v1 = draw.world_to_screen(trigger.aabb.minpos)
+--         local v2 = draw.world_to_screen(trigger.aabb.maxpos)
+
+--         if v1 ~= nil and v2 ~= nil then
+--             draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
+--             draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, color)
+--         end
+
+--         aabb_center = trigger.aabb:call("getCenter()")
+
+--         if aabb_center ~= nil then
+--             local name_label = "TRIGGER (" .. trigger.name .. ")"
+    
+--             local name_label_pos = draw.world_to_screen(aabb_center)
+--             local name_label_bounds = imgui.calc_text_size(name_label)
+    
+--             if (name_label_pos ~= nil) then
+--                 draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+--             end
+    
+--             draw.world_text("+", trigger.aabb.minpos, COLOR_WHITE)
+--             draw.world_text("+", trigger.aabb.maxpos, COLOR_WHITE)
+--         end
+--     end
+-- end
 
 -- Additional functions
 local function config_allows_trigger_type(type)
@@ -203,12 +281,11 @@ local function on_pre_trigger_generate_work(args)
         local collider = game_object_colliders:call("getColliders", i)
         if collider then
             local collider_shape = collider:call("get_TransformedShape")
-            bongas = collider_shape:get_type_definition():get_name()
+            current_trigger_shape = collider_shape:get_type_definition():get_name()
             if collider_shape and collider_shape:get_type_definition():get_name() == "BoxShape" then
                 local obb = collider_shape:call("get_Box()")
                 if obb then
-                    local trigger_bounding_box = obb:call("getBoundingAABB()")
-                    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
+                    local trigger = Trigger.new(trigger_display_name, obb, trigger_runtime_type)
                     if not entry_exists(previously_hit_triggers, trigger) then
                         table.insert(previously_hit_triggers, trigger)
                     end
@@ -256,8 +333,8 @@ end)
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
 
-        imgui.text(tostring(contact_count))
-        imgui.text(bongas)
+        imgui.text("Colliders: " .. tostring(contact_count))
+        imgui.text("Shape: " .. current_trigger_shape)
 
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
 

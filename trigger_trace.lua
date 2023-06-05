@@ -23,6 +23,8 @@ local trigger_color = COLOR_RED
 
 -- Debug
 local debug_game_objects = {}
+local contact_count = 0
+local bongas = nil
 
 -- Trigger definitions
 local previously_hit_triggers = {}
@@ -184,23 +186,39 @@ local function on_pre_trigger_generate_work(args)
         error("Failed to get via.physics.Colliders component for Game Object")
     end
 
-    local trigger_aabb = game_object_colliders:call("get_BoundingAabb()")
-    if trigger_aabb.minpos == nil or trigger_aabb.maxpos == nil then
-        error("Failed to get trigger_aabb.minpos or trigger_aabb.maxpos")
-    end
-
-    local trigger = Trigger.new(trigger_display_name, trigger_aabb, trigger_runtime_type)
-    if not entry_exists(previously_hit_triggers, trigger) then
-        table.insert(previously_hit_triggers, trigger)
+    local game_object_interact_holder = get_component(owner_game_object, "chainsaw.InteractHolder")
+    if game_object_interact_holder == nil then
+        error("Failed to get chainsaw.InteractHolder component for Game Object")
     end
 
     if is_debug_mode then
         table.insert(debug_game_objects, owner_game_object)
     end
 
-    -- local colliders_count = sdk.to_int64(game_object_colliders:call("get_CollidersCount()"))
-    -- for i = 1, colliders_count do
-    --     local collider = game_object_colliders:call("getColliders()", i - 1)
+    local colliders_count = game_object_colliders:call("get_NumColliders()")
+
+    contact_count = colliders_count
+
+    for i = 0, colliders_count do
+        local collider = game_object_colliders:call("getColliders", i)
+        if collider then
+            local collider_shape = collider:call("get_TransformedShape")
+            bongas = collider_shape:get_type_definition():get_name()
+            if collider_shape and collider_shape:get_type_definition():get_name() == "BoxShape" then
+                local obb = collider_shape:call("get_Box()")
+                if obb then
+                    local trigger_bounding_box = obb:call("getBoundingAABB()")
+                    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
+                    if not entry_exists(previously_hit_triggers, trigger) then
+                        table.insert(previously_hit_triggers, trigger)
+                    end
+                end
+            end
+        end
+    end
+
+    -- for i = 0, colliders_count do
+    --     local collider = game_object_colliders:call("getColliders()", i)
 
     --     local collider_shape = collider:call("get_Shape()")
 
@@ -237,6 +255,10 @@ end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
+
+        imgui.text(tostring(contact_count))
+        imgui.text(bongas)
+
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
 
         changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])

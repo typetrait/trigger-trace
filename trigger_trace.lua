@@ -11,17 +11,18 @@ local COLOR_WHITE = 0xffffffff
 
 -- Config
 local should_render_triggers = true
-local should_render_debug_info = false
+local is_debug_mode = false
 local trigger_type_filter_map = {
     ["InteractTriggerAreaHit"] = true,
-    ["InteractTriggerKey"] = false
+    ["InteractTriggerKey"] = false,
+    ["InteractTriggerUseItem"] = false
 }
 
 -- Variables
 local trigger_color = COLOR_RED
 
-local last_trigger_target_type = 0
-local trigger_activate_type = 0
+-- Debug
+local debug_game_objects = {}
 
 -- Trigger definitions
 local previously_hit_triggers = {}
@@ -66,6 +67,16 @@ local function get_component(game_object, type_name)
     end
 
     return game_object:call("getComponent(System.Type)", t)
+end
+
+local function get_components(game_object)
+    local transform = game_object:call("get_Transform")
+
+    if not transform then
+        return {}
+    end
+
+    return game_object:call("get_Components"):get_elements()
 end
 
 local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
@@ -167,22 +178,40 @@ local function on_pre_trigger_generate_work(args)
     local trigger_display_name = current_trigger_activated.UniqueName .. "_" .. trigger_runtime_type
 
     local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
-    local owner_game_object_transform = get_component(owner_game_object, "via.Transform")
 
-    local owner_game_object_collider = get_component(owner_game_object, "via.physics.Colliders")
-    if owner_game_object_collider == nil then
+    local game_object_colliders = get_component(owner_game_object, "via.physics.Colliders")
+    if game_object_colliders == nil then
         error("Failed to get via.physics.Colliders component for Game Object")
     end
 
-    local trigger_bounding_box = owner_game_object_collider:call("get_BoundingAabb()")
-    if trigger_bounding_box.minpos == nil or trigger_bounding_box.maxpos == nil then
-        error("Failed to get trigger_bounding_box.minpos or trigger_bounding_box.maxpos")
+    local trigger_aabb = game_object_colliders:call("get_BoundingAabb()")
+    if trigger_aabb.minpos == nil or trigger_aabb.maxpos == nil then
+        error("Failed to get trigger_aabb.minpos or trigger_aabb.maxpos")
     end
 
-    local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
+    local trigger = Trigger.new(trigger_display_name, trigger_aabb, trigger_runtime_type)
     if not entry_exists(previously_hit_triggers, trigger) then
         table.insert(previously_hit_triggers, trigger)
     end
+
+    if is_debug_mode then
+        table.insert(debug_game_objects, owner_game_object)
+    end
+
+    -- local colliders_count = sdk.to_int64(game_object_colliders:call("get_CollidersCount()"))
+    -- for i = 1, colliders_count do
+    --     local collider = game_object_colliders:call("getColliders()", i - 1)
+
+    --     local collider_shape = collider:call("get_Shape()")
+
+    --     if collider_shape and collider_shape:get_type_definition():get_name() == "AabbShape" then
+    --         local trigger_bounding_box = collider_shape:call("get_Aabb()")
+    --         local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
+    --         if not entry_exists(previously_hit_triggers, trigger) then
+    --             table.insert(previously_hit_triggers, trigger)
+    --         end
+    --     end
+    -- end
 end
 
 local function on_post_trigger_generate_work(ret)
@@ -212,16 +241,16 @@ re.on_draw_ui(function()
 
         changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
         changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
+        changed, trigger_type_filter_map["InteractTriggerUseItem"] = imgui.checkbox("Use Item", trigger_type_filter_map["InteractTriggerUseItem"])
 
-        imgui.spacing();
-        imgui.spacing();
-        imgui.spacing();
+        imgui.spacing()
+        imgui.spacing()
+        imgui.spacing()
 
         if imgui.begin_list_box("Triggers hit") then
             for i,t in ipairs(previously_hit_triggers) do
                 changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
             end
-
             imgui.end_list_box()
         end
 
@@ -234,13 +263,29 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
-        if imgui.tree_node("Debug") then
-            changed, should_render_debug_info = imgui.checkbox("Display Debug Info", should_render_debug_info)
-            imgui.tree_pop()
+        changed, is_debug_mode = imgui.checkbox("Debug Mode", is_debug_mode)
+
+        if changed and not is_debug_mode then
+            clear_table(debug_game_objects)
         end
 
+        if is_debug_mode then
+            if imgui.tree_node("Debug") then
+                for i,o in ipairs(debug_game_objects) do
+                    if imgui.tree_node(tostring(i) .. ". " .. o:get_type_definition():get_name()) then
+                        local game_object_components = get_components(o)
+                        for j,c in ipairs(game_object_components) do
+                            if imgui.tree_node(tostring(j) .. ". " .. c:get_type_definition():get_name()) then
+                                imgui.tree_pop()
+                            end
+                        end
+                        imgui.tree_pop()
+                    end
+                end
+                imgui.tree_pop()
+            end
+        end
         imgui.tree_pop()
     end
-
     imgui.spacing()
 end)

@@ -25,6 +25,7 @@ local trigger_color = COLOR_RED
 local debug_game_objects = {}
 local contact_count = 0
 local current_trigger_shape = ""
+local quat_string = ""
 
 -- Trigger definitions
 local previously_hit_triggers = {}
@@ -140,6 +141,29 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
     end
 end
 
+function euler_to_quat(pitch, yaw, roll)
+    -- First, convert pitch, yaw, and roll to radians.
+    -- pitch = pitch * (pi / 180)
+    -- yaw = yaw * (pi / 180)
+    -- roll = roll * (pi / 180)
+
+    -- Pre-calculate sine and cosine of half angles
+    local cp = math.cos(pitch * 0.5)
+    local sp = math.sin(pitch * 0.5)
+    local cy = math.cos(yaw * 0.5)
+    local sy = math.sin(yaw * 0.5)
+    local cr = math.cos(roll * 0.5)
+    local sr = math.sin(roll * 0.5)
+
+    -- Create the quaternion
+    local w = cp * cy * cr + sp * sy * sr
+    local x = sp * cy * cr - cp * sy * sr
+    local y = cp * sy * cr + sp * cy * sr
+    local z = cp * cy * sr - sp * sy * cr
+
+    return Quaternion:new(w, x, y, z)
+end
+
 local function render_trigger(trigger, color)
     if trigger.obb == nil then
         return
@@ -148,6 +172,10 @@ local function render_trigger(trigger, color)
     local pos = trigger.obb:call("get_Position")
     local extent = trigger.obb:call("get_Extent")
     local rotation = trigger.obb:call("get_RotateAngle")
+
+    rotation = euler_to_quat(rotation.x, rotation.y, rotation.z)
+
+    quat_string = type(rotation) .. " x = " .. rotation.x .. " y = " .. rotation.y .. " z = " .. rotation.z .. " w = " .. rotation.w
 
     local name_label = "TRIGGER (" .. trigger.name .. ")"
     
@@ -158,16 +186,21 @@ local function render_trigger(trigger, color)
         draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
     end
 
-    local corners = {
-        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y - extent.y, pos.z - extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y - extent.y, pos.z - extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y + extent.y, pos.z - extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y + extent.y, pos.z - extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y - extent.y, pos.z + extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y - extent.y, pos.z + extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x - extent.x, pos.y + extent.y, pos.z + extent.z)),
-        draw.world_to_screen(Vector3f.new(pos.x + extent.x, pos.y + extent.y, pos.z + extent.z))
+    local corner_offsets = {
+        Vector3f.new(-extent.x, -extent.y, -extent.z),
+        Vector3f.new(extent.x, -extent.y, -extent.z),
+        Vector3f.new(-extent.x, extent.y, -extent.z),
+        Vector3f.new(extent.x, extent.y, -extent.z),
+        Vector3f.new(-extent.x, -extent.y, extent.z),
+        Vector3f.new(extent.x, -extent.y, extent.z),
+        Vector3f.new(-extent.x, extent.y, extent.z),
+        Vector3f.new(extent.x, extent.y, extent.z)
     }
+
+    local corners = {}
+    for i, offset in ipairs(corner_offsets) do
+        corners[i] = draw.world_to_screen(pos + rotation * offset)
+    end
 
     if corners[1] ~= nil and corners[2] ~= nil then
         draw.line(corners[1].x, corners[1].y, corners[2].x, corners[2].y, color)
@@ -335,6 +368,8 @@ re.on_draw_ui(function()
 
         imgui.text("Colliders: " .. tostring(contact_count))
         imgui.text("Shape: " .. current_trigger_shape)
+
+        imgui.text("Debug Quaternion: " .. quat_string)
 
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
 

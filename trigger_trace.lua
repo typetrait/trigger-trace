@@ -82,11 +82,31 @@ local function get_components(game_object)
     return game_object:call("get_Components"):get_elements()
 end
 
-local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
-    if lower_corner_pos ~= nil and upper_corner_pos ~= nil then
-        local lower = lower_corner_pos
-        local upper = upper_corner_pos
+function euler_to_quat(pitch, yaw, roll)
+    -- First, convert pitch, yaw, and roll to radians.
+    -- pitch = pitch * (pi / 180)
+    -- yaw = yaw * (pi / 180)
+    -- roll = roll * (pi / 180)
 
+    -- Pre-calculate sine and cosine of half angles
+    local cp = math.cos(pitch * 0.5)
+    local sp = math.sin(pitch * 0.5)
+    local cy = math.cos(yaw * 0.5)
+    local sy = math.sin(yaw * 0.5)
+    local cr = math.cos(roll * 0.5)
+    local sr = math.sin(roll * 0.5)
+
+    -- Create the quaternion
+    local w = cp * cy * cr + sp * sy * sr
+    local x = sp * cy * cr - cp * sy * sr
+    local y = cp * sy * cr + sp * cy * sr
+    local z = cp * cy * sr - sp * sy * cr
+
+    return Quaternion:new(w, x, y, z)
+end
+
+local function draw_aabb(lower, upper, color)
+    if lower ~= nil and upper ~= nil then
         local front_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, lower.z))
         local front_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, lower.z))
         local front_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, lower.z))
@@ -141,50 +161,17 @@ local function draw_wireframe_box(lower_corner_pos, upper_corner_pos, color)
     end
 end
 
-function euler_to_quat(pitch, yaw, roll)
-    -- First, convert pitch, yaw, and roll to radians.
-    -- pitch = pitch * (pi / 180)
-    -- yaw = yaw * (pi / 180)
-    -- roll = roll * (pi / 180)
-
-    -- Pre-calculate sine and cosine of half angles
-    local cp = math.cos(pitch * 0.5)
-    local sp = math.sin(pitch * 0.5)
-    local cy = math.cos(yaw * 0.5)
-    local sy = math.sin(yaw * 0.5)
-    local cr = math.cos(roll * 0.5)
-    local sr = math.sin(roll * 0.5)
-
-    -- Create the quaternion
-    local w = cp * cy * cr + sp * sy * sr
-    local x = sp * cy * cr - cp * sy * sr
-    local y = cp * sy * cr + sp * cy * sr
-    local z = cp * cy * sr - sp * sy * cr
-
-    return Quaternion:new(w, x, y, z)
-end
-
-local function render_trigger(trigger, color)
-    if trigger.obb == nil then
+local function draw_obb(obb, color)
+    if obb == nil then
         return
     end
 
-    local pos = trigger.obb:call("get_Position")
-    local extent = trigger.obb:call("get_Extent")
-    local rotation = trigger.obb:call("get_RotateAngle")
+    local pos = obb:call("get_Position")
+    local extent = obb:call("get_Extent")
+    local rotation = obb:call("get_RotateAngle")
 
     rotation = euler_to_quat(rotation.x, rotation.y, rotation.z)
-
     quat_string = type(rotation) .. " x = " .. rotation.x .. " y = " .. rotation.y .. " z = " .. rotation.z .. " w = " .. rotation.w
-
-    local name_label = "TRIGGER (" .. trigger.name .. ")"
-    
-    local name_label_pos = draw.world_to_screen(pos)
-    local name_label_bounds = imgui.calc_text_size(name_label)
-
-    if (name_label_pos ~= nil) then
-        draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
-    end
 
     local corner_offsets = {
         Vector3f.new(-extent.x, -extent.y, -extent.z),
@@ -251,6 +238,24 @@ local function render_trigger(trigger, color)
     end
 end
 
+local function render_trigger(trigger, color)
+    if trigger.obb == nil then
+        return
+    end
+
+    local pos = trigger.obb:call("get_Position")
+
+    local name_label = "TRIGGER (" .. trigger.name .. ")"
+    local name_label_pos = draw.world_to_screen(pos)
+    local name_label_bounds = imgui.calc_text_size(name_label)
+
+    if (name_label_pos ~= nil) then
+        draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+    end
+
+    draw_obb(trigger.obb, color)
+end
+
 -- local function render_trigger(trigger, color)
 --     if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
 --         local v1 = draw.world_to_screen(trigger.aabb.minpos)
@@ -258,7 +263,7 @@ end
 
 --         if v1 ~= nil and v2 ~= nil then
 --             draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
---             draw_wireframe_box(trigger.aabb.minpos, trigger.aabb.maxpos, color)
+--             draw_aabb(trigger.aabb.minpos, trigger.aabb.maxpos, color)
 --         end
 
 --         aabb_center = trigger.aabb:call("getCenter()")
@@ -326,20 +331,6 @@ local function on_pre_trigger_generate_work(args)
             end
         end
     end
-
-    -- for i = 0, colliders_count do
-    --     local collider = game_object_colliders:call("getColliders()", i)
-
-    --     local collider_shape = collider:call("get_Shape()")
-
-    --     if collider_shape and collider_shape:get_type_definition():get_name() == "AabbShape" then
-    --         local trigger_bounding_box = collider_shape:call("get_Aabb()")
-    --         local trigger = Trigger.new(trigger_display_name, trigger_bounding_box, trigger_runtime_type)
-    --         if not entry_exists(previously_hit_triggers, trigger) then
-    --             table.insert(previously_hit_triggers, trigger)
-    --         end
-    --     end
-    -- end
 end
 
 local function on_post_trigger_generate_work(ret)

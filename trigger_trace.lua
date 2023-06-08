@@ -105,60 +105,48 @@ function euler_to_quat(pitch, yaw, roll)
     return Quaternion:new(w, x, y, z)
 end
 
-local function draw_aabb(lower, upper, color)
-    if lower ~= nil and upper ~= nil then
-        local front_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, lower.z))
-        local front_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, lower.z))
-        local front_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, lower.z))
-        local front_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, lower.z))
-
-        local back_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, upper.z))
-        local back_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, upper.z))
-        local back_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, upper.z))
-        local back_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, upper.z))
-
-        -- Front face
-        if front_face_vertex1 ~= nil and front_face_vertex2 ~= nil then
-            draw.line(front_face_vertex1.x, front_face_vertex1.y, front_face_vertex2.x, front_face_vertex2.y, color)
-        end
-        if front_face_vertex2 ~= nil and front_face_vertex3 ~= nil then
-            draw.line(front_face_vertex2.x, front_face_vertex2.y, front_face_vertex3.x, front_face_vertex3.y, color)
-        end
-        if front_face_vertex3 ~= nil and front_face_vertex4 ~= nil then
-            draw.line(front_face_vertex3.x, front_face_vertex3.y, front_face_vertex4.x, front_face_vertex4.y, color)
-        end
-        if front_face_vertex4 ~= nil and front_face_vertex1 ~= nil then
-            draw.line(front_face_vertex4.x, front_face_vertex4.y, front_face_vertex1.x, front_face_vertex1.y, color)
-        end
-
-        -- Back face
-        if back_face_vertex1 ~= nil and back_face_vertex2 ~= nil then
-            draw.line(back_face_vertex1.x, back_face_vertex1.y, back_face_vertex2.x, back_face_vertex2.y, color)
-        end
-        if back_face_vertex2 ~= nil and back_face_vertex3 ~= nil then
-            draw.line(back_face_vertex2.x, back_face_vertex2.y, back_face_vertex3.x, back_face_vertex3.y, color)
-        end
-        if back_face_vertex3 ~= nil and back_face_vertex4 ~= nil then
-            draw.line(back_face_vertex3.x, back_face_vertex3.y, back_face_vertex4.x, back_face_vertex4.y, color)
-        end
-        if back_face_vertex4 ~= nil and back_face_vertex1 ~= nil then
-            draw.line(back_face_vertex4.x, back_face_vertex4.y, back_face_vertex1.x, back_face_vertex1.y, color)
-        end
-
-        -- Connecting lines
-        if front_face_vertex1 ~= nil and back_face_vertex1 ~= nil then
-            draw.line(front_face_vertex1.x, front_face_vertex1.y, back_face_vertex1.x, back_face_vertex1.y, color)
-        end
-        if front_face_vertex2 ~= nil and back_face_vertex2 ~= nil then
-            draw.line(front_face_vertex2.x, front_face_vertex2.y, back_face_vertex2.x, back_face_vertex2.y, color)
-        end
-        if front_face_vertex3 ~= nil and back_face_vertex3 ~= nil then
-            draw.line(front_face_vertex3.x, front_face_vertex3.y, back_face_vertex3.x, back_face_vertex3.y, color)
-        end
-        if front_face_vertex4 ~= nil and back_face_vertex4 ~= nil then
-            draw.line(front_face_vertex4.x, front_face_vertex4.y, back_face_vertex4.x, back_face_vertex4.y, color)
-        end
+local function draw_line(p1, p2, color)
+    if p1 and p2 then
+        draw.line(p1.x, p1.y, p2.x, p2.y, color)
     end
+end
+
+local function draw_aabb(aabb, color)
+    if aabb == nil then
+        return
+    end
+
+    local lower = aabb.minpos
+    local upper = aabb.maxpos
+
+    local front_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, lower.z))
+    local front_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, lower.z))
+    local front_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, lower.z))
+    local front_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, lower.z))
+
+    local back_face_vertex1 = draw.world_to_screen(Vector3f.new(lower.x, lower.y, upper.z))
+    local back_face_vertex2 = draw.world_to_screen(Vector3f.new(lower.x, upper.y, upper.z))
+    local back_face_vertex3 = draw.world_to_screen(Vector3f.new(upper.x, upper.y, upper.z))
+    local back_face_vertex4 = draw.world_to_screen(Vector3f.new(upper.x, lower.y, upper.z))
+
+    -- Front face
+    draw_line(front_face_vertex1, front_face_vertex2, color)
+    draw_line(front_face_vertex2, front_face_vertex3, color)
+    draw_line(front_face_vertex3, front_face_vertex4, color)
+    draw_line(front_face_vertex4, front_face_vertex1, color)
+
+    -- Back face
+    draw_line(back_face_vertex1, back_face_vertex2, color)
+    draw_line(back_face_vertex2, back_face_vertex3, color)
+    draw_line(back_face_vertex3, back_face_vertex4, color)
+    draw_line(back_face_vertex4, back_face_vertex1, color)
+
+    -- Connecting lines
+    draw_line(front_face_vertex1, back_face_vertex1, color)
+    draw_line(front_face_vertex2, back_face_vertex2, color)
+    draw_line(front_face_vertex3, back_face_vertex3, color)
+    draw_line(front_face_vertex4, back_face_vertex4, color)
+
 end
 
 local function draw_obb(obb, color)
@@ -189,53 +177,18 @@ local function draw_obb(obb, color)
         corners[i] = draw.world_to_screen(pos + rotation * offset)
     end
 
-    if corners[1] ~= nil and corners[2] ~= nil then
-        draw.line(corners[1].x, corners[1].y, corners[2].x, corners[2].y, color)
-    end
-
-    if corners[1] ~= nil and corners[3] ~= nil then
-        draw.line(corners[1].x, corners[1].y, corners[3].x, corners[3].y, color)
-    end
-
-    if corners[1] ~= nil and corners[5] ~= nil then
-        draw.line(corners[1].x, corners[1].y, corners[5].x, corners[5].y, color)
-    end
-
-    if corners[2] ~= nil and corners[4] ~= nil then
-        draw.line(corners[2].x, corners[2].y, corners[4].x, corners[4].y, color)
-    end
-
-    if corners[2] ~= nil and corners[6] ~= nil then
-        draw.line(corners[2].x, corners[2].y, corners[6].x, corners[6].y, color)
-    end
-
-    if corners[3] ~= nil and corners[4] ~= nil then
-        draw.line(corners[3].x, corners[3].y, corners[4].x, corners[4].y, color)
-    end
-
-    if corners[3] ~= nil and corners[7] ~= nil then
-        draw.line(corners[3].x, corners[3].y, corners[7].x, corners[7].y, color)
-    end
-
-    if corners[4] ~= nil and corners[8] ~= nil then
-        draw.line(corners[4].x, corners[4].y, corners[8].x, corners[8].y, color)
-    end
-
-    if corners[5] ~= nil and corners[6] ~= nil then
-        draw.line(corners[5].x, corners[5].y, corners[6].x, corners[6].y, color)
-    end
-
-    if corners[5] ~= nil and corners[7] ~= nil then
-        draw.line(corners[5].x, corners[5].y, corners[7].x, corners[7].y, color)
-    end
-
-    if corners[6] ~= nil and corners[8] ~= nil then
-        draw.line(corners[6].x, corners[6].y, corners[8].x, corners[8].y, color)
-    end
-
-    if corners[7] ~= nil and corners[8] ~= nil then
-        draw.line(corners[7].x, corners[7].y, corners[8].x, corners[8].y, color)
-    end
+    draw_line(corners[1], corners[2], color)
+    draw_line(corners[1], corners[3], color)
+    draw_line(corners[1], corners[5], color)
+    draw_line(corners[2], corners[4], color)
+    draw_line(corners[2], corners[6], color)
+    draw_line(corners[3], corners[4], color)
+    draw_line(corners[3], corners[7], color)
+    draw_line(corners[4], corners[8], color)
+    draw_line(corners[5], corners[6], color)
+    draw_line(corners[5], corners[7], color)
+    draw_line(corners[6], corners[8], color)
+    draw_line(corners[7], corners[8], color)
 end
 
 local function render_trigger(trigger, color)

@@ -256,34 +256,6 @@ local function render_trigger(trigger, color)
     draw_obb(trigger.obb, color)
 end
 
--- local function render_trigger(trigger, color)
---     if trigger.aabb.minpos ~= nil and trigger.aabb.maxpos ~= nil then    
---         local v1 = draw.world_to_screen(trigger.aabb.minpos)
---         local v2 = draw.world_to_screen(trigger.aabb.maxpos)
-
---         if v1 ~= nil and v2 ~= nil then
---             draw.line(v1.x, v1.y, v2.x, v2.y, COLOR_WHITE)
---             draw_aabb(trigger.aabb.minpos, trigger.aabb.maxpos, color)
---         end
-
---         aabb_center = trigger.aabb:call("getCenter()")
-
---         if aabb_center ~= nil then
---             local name_label = "TRIGGER (" .. trigger.name .. ")"
-    
---             local name_label_pos = draw.world_to_screen(aabb_center)
---             local name_label_bounds = imgui.calc_text_size(name_label)
-    
---             if (name_label_pos ~= nil) then
---                 draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
---             end
-    
---             draw.world_text("+", trigger.aabb.minpos, COLOR_WHITE)
---             draw.world_text("+", trigger.aabb.maxpos, COLOR_WHITE)
---         end
---     end
--- end
-
 -- Additional functions
 local function config_allows_trigger_type(type)
     return trigger_type_filter_map[type] ~= nil and trigger_type_filter_map[type]

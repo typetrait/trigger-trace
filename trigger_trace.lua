@@ -33,17 +33,17 @@ local previously_hit_triggers = {}
 local Trigger = {}
 Trigger.__index = Trigger
 
-function Trigger.new(name, obb, type)
+function Trigger.new(name, shape, type)
     local self = setmetatable({}, Trigger)
     self.name = name
-    self.obb = obb
+    self.shape = shape
     self.type = type
     self.draw = true
     return self
 end
 
 function Trigger:equals(other)
-    return self.name == other.name and self.obb == other.obb
+    return self.name == other.name and self.shape == other.shape
 end
 
 -- Helper functions
@@ -192,21 +192,27 @@ local function draw_obb(obb, color)
 end
 
 local function render_trigger(trigger, color)
-    if trigger.obb == nil then
+    if trigger.shape == nil then
         return
     end
 
-    local pos = trigger.obb:call("get_Position")
+    local shape_type = trigger.shape:get_type_definition():get_name()
 
-    local name_label = "TRIGGER (" .. trigger.name .. ")"
-    local name_label_pos = draw.world_to_screen(pos)
-    local name_label_bounds = imgui.calc_text_size(name_label)
+    if shape_type == "BoxShape" then
+        local obb = trigger.shape:call("get_Box()")
 
-    if (name_label_pos ~= nil) then
-        draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+        local pos = obb:call("get_Position")
+
+        draw_obb(obb, color)
+
+        local name_label = "TRIGGER (" .. trigger.name .. ")"
+        local name_label_pos = draw.world_to_screen(pos)
+        local name_label_bounds = imgui.calc_text_size(name_label)
+    
+        if name_label_pos then
+            draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+        end
     end
-
-    draw_obb(trigger.obb, color)
 end
 
 -- Additional functions
@@ -244,14 +250,11 @@ local function on_pre_trigger_generate_work(args)
         local collider = game_object_colliders:call("getColliders", i)
         if collider then
             local collider_shape = collider:call("get_TransformedShape")
-            current_trigger_shape = collider_shape:get_type_definition():get_name()
-            if collider_shape and collider_shape:get_type_definition():get_name() == "BoxShape" then
-                local obb = collider_shape:call("get_Box()")
-                if obb then
-                    local trigger = Trigger.new(trigger_display_name, obb, trigger_runtime_type)
-                    if not entry_exists(previously_hit_triggers, trigger) then
-                        table.insert(previously_hit_triggers, trigger)
-                    end
+            trigger_shape_name = collider_shape:get_type_definition():get_name()
+            if collider_shape then
+                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"), collider_shape, trigger_runtime_type)
+                if not entry_exists(previously_hit_triggers, trigger) and config_allows_trigger_type(trigger.type) then
+                    table.insert(previously_hit_triggers, trigger)
                 end
             end
         end
@@ -281,17 +284,13 @@ end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
-
-        imgui.text("Colliders: " .. tostring(contact_count))
-        imgui.text("Shape: " .. current_trigger_shape)
-
-        imgui.text("Debug Quaternion: " .. quat_string)
-
         changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
 
-        changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
-        changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
-        changed, trigger_type_filter_map["InteractTriggerUseItem"] = imgui.checkbox("Use Item", trigger_type_filter_map["InteractTriggerUseItem"])
+        if should_render_triggers then
+            changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
+            changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
+            changed, trigger_type_filter_map["InteractTriggerUseItem"] = imgui.checkbox("Use Item", trigger_type_filter_map["InteractTriggerUseItem"])
+        end
 
         imgui.spacing()
         imgui.spacing()
@@ -313,7 +312,9 @@ re.on_draw_ui(function()
             imgui.tree_pop()
         end
 
-        changed, is_debug_mode = imgui.checkbox("Debug Mode", is_debug_mode)
+        imgui.spacing()
+
+        changed, is_debug_mode = imgui.checkbox("Debug Mode (development only)", is_debug_mode)
 
         if changed and not is_debug_mode then
             clear_table(debug_game_objects)
@@ -321,6 +322,10 @@ re.on_draw_ui(function()
 
         if is_debug_mode then
             if imgui.tree_node("Debug") then
+                imgui.text("Colliders: " .. tostring(contact_count))
+                imgui.text("Shape: " .. current_trigger_shape)
+                imgui.text("Debug Quaternion: " .. quat_string)
+
                 for i,o in ipairs(debug_game_objects) do
                     if imgui.tree_node(tostring(i) .. ". " .. o:get_type_definition():get_name()) then
                         local game_object_components = get_components(o)

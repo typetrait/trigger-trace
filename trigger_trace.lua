@@ -25,7 +25,7 @@ local trigger_color = COLOR_RED
 local debug_game_objects = {}
 local contact_count = 0
 local current_trigger_shape = ""
-local quat_string = ""
+local debug_text = ""
 
 -- Trigger definitions
 local previously_hit_triggers = {}
@@ -159,7 +159,6 @@ local function draw_obb(obb, color)
     local rotation = obb:call("get_RotateAngle")
 
     rotation = euler_to_quat(rotation.x, rotation.y, rotation.z)
-    quat_string = type(rotation) .. " x = " .. rotation.x .. " y = " .. rotation.y .. " z = " .. rotation.z .. " w = " .. rotation.w
 
     local corner_offsets = {
         Vector3f.new(-extent.x, -extent.y, -extent.z),
@@ -329,7 +328,7 @@ re.on_draw_ui(function()
             if imgui.tree_node("Debug") then
                 imgui.text("Colliders: " .. tostring(contact_count))
                 imgui.text("Shape: " .. current_trigger_shape)
-                imgui.text("Debug Quaternion: " .. quat_string)
+                imgui.text("Debug: " .. debug_text)
 
                 for i,o in ipairs(debug_game_objects) do
                     if imgui.tree_node(tostring(i) .. ". " .. o:get_type_definition():get_name()) then

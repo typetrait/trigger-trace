@@ -220,7 +220,12 @@ local function config_allows_trigger_type(type)
     return trigger_type_filter_map[type] ~= nil and trigger_type_filter_map[type]
 end
 
+-- Hooks
 local function on_pre_trigger_generate_work(args)
+    if not should_render_triggers then
+        return
+    end
+
     local current_trigger_activated = sdk.to_managed_object(args[2])
     local trigger_runtime_type = current_trigger_activated:get_type_definition():get_name()
 

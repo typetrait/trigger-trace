@@ -22,6 +22,9 @@ local config = {
     should_render_activated_triggers = true,
     scene_trigger_color = COLOR_RED,
     activated_trigger_color = COLOR_GREEN,
+    trigger = {
+        should_render_labels = true
+    },
     is_debug = false
 }
 
@@ -236,7 +239,7 @@ local function render_trigger(trigger, color)
         local name_label_pos = draw.world_to_screen(pos)
         local name_label_bounds = imgui.calc_text_size(name_label)
     
-        if name_label_pos then
+        if name_label_pos and config.trigger.should_render_labels then
             draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
         end
     end
@@ -398,6 +401,7 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Visuals") then
+            changed, config.trigger.should_render_labels = imgui.checkbox("Render Labels", config.trigger.should_render_labels)
             changed, config.scene_trigger_color = imgui.color_edit("Triggers", config.scene_trigger_color)
             changed, config.activated_trigger_color = imgui.color_edit("Activated Triggers", config.activated_trigger_color)
             imgui.tree_pop()

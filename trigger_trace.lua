@@ -11,27 +11,24 @@ local COLOR_GREEN = 0xff00ff00
 local COLOR_WHITE = 0xffffffff
 
 -- Config
-local should_render_triggers = true
-local is_debug_mode = false
 local trigger_type_filter_map = {
     ["InteractTriggerAreaHit"] = true,
     ["InteractTriggerKey"] = false,
     ["InteractTriggerUseItem"] = false
 }
 
--- Variables
-local scene_trigger_color = COLOR_RED
-local trigger_color = COLOR_GREEN
+local config = {
+    should_render_scene_triggers = true,
+    should_render_activated_triggers = true,
+    scene_trigger_color = COLOR_RED,
+    activated_trigger_color = COLOR_GREEN,
+    is_debug = false
+}
 
 -- Debug
 local debug_game_objects = {}
 local contact_count = 0
-local current_trigger_shape = ""
 local debug_text = ""
-
-local config = {
-    should_render_scene_triggers = true
-}
 
 -- Helper functions
 local function entry_exists(table, entry)
@@ -292,7 +289,7 @@ end
 
 -- Hooks
 local function on_pre_trigger_generate_work(args)
-    if not should_render_triggers then
+    if not config.should_render_activated_triggers then
         return
     end
 
@@ -313,7 +310,7 @@ local function on_pre_trigger_generate_work(args)
         error("Failed to get chainsaw.InteractHolder component for Game Object")
     end
 
-    if is_debug_mode then
+    if config.is_debug then
         table.insert(debug_game_objects, owner_game_object)
     end
 
@@ -345,20 +342,19 @@ sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_metho
     on_pre_trigger_generate_work,
     on_post_trigger_generate_work)
 
-
 re.on_frame(function()
     if config.should_render_scene_triggers then
         for i,t in ipairs(all_scene_triggers) do
             if config_allows_trigger_type(t.type) and t.draw then
-                render_trigger(t, scene_trigger_color)
+                render_trigger(t, config.scene_trigger_color)
             end
         end
     end
 
-    if should_render_triggers then
+    if config.should_render_activated_triggers then
         for i,t in ipairs(previously_hit_triggers) do
             if config_allows_trigger_type(t.type) and t.draw then
-                render_trigger(t, trigger_color)
+                render_trigger(t, config.activated_trigger_color)
             end
         end
     end
@@ -378,9 +374,9 @@ re.on_draw_ui(function()
             end
         end
 
-        changed, should_render_triggers = imgui.checkbox("On Hit (Activated)", should_render_triggers)
+        changed, config.should_render_activated_triggers = imgui.checkbox("On Hit (Activated)", config.should_render_activated_triggers)
 
-        if should_render_triggers or config.should_render_scene_triggers then
+        if config.should_render_activated_triggers or config.should_render_scene_triggers then
             if imgui.tree_node("Filters") then
                 changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
                 changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
@@ -397,27 +393,26 @@ re.on_draw_ui(function()
             imgui.end_list_box()
         end
 
-        if imgui.button("Clear") then 
+        if imgui.button("Clear##1") then 
             clear_table(previously_hit_triggers)
         end
 
         if imgui.tree_node("Visuals") then
-            changed, trigger_color = imgui.color_picker("Trigger color", trigger_color)
+            changed, config.activated_trigger_color = imgui.color_picker("Trigger color", config.activated_trigger_color)
             imgui.tree_pop()
         end
 
         imgui.spacing()
 
-        changed, is_debug_mode = imgui.checkbox("Debug Mode (development only)", is_debug_mode)
+        changed, config.is_debug = imgui.checkbox("Debug Mode (development only)", config.is_debug)
 
-        if changed and not is_debug_mode then
+        if changed and not config.is_debug then
             clear_table(debug_game_objects)
         end
 
-        if is_debug_mode then
+        if config.is_debug then
             if imgui.tree_node("Debug") then
                 imgui.text("Colliders: " .. tostring(contact_count))
-                imgui.text("Shape: " .. current_trigger_shape)
                 imgui.text("Debug: " .. debug_text)
 
                 for i,o in ipairs(debug_game_objects) do

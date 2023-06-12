@@ -398,7 +398,8 @@ re.on_draw_ui(function()
         end
 
         if imgui.tree_node("Visuals") then
-            changed, config.activated_trigger_color = imgui.color_picker("Trigger color", config.activated_trigger_color)
+            changed, config.scene_trigger_color = imgui.color_edit("Triggers", config.scene_trigger_color)
+            changed, config.activated_trigger_color = imgui.color_edit("Activated Triggers", config.activated_trigger_color)
             imgui.tree_pop()
         end
 
@@ -414,7 +415,6 @@ re.on_draw_ui(function()
             if imgui.tree_node("Debug") then
                 imgui.text("Colliders: " .. tostring(contact_count))
                 imgui.text("Debug: " .. debug_text)
-
                 for i,o in ipairs(debug_game_objects) do
                     if imgui.tree_node(tostring(i) .. ". " .. o:get_type_definition():get_name()) then
                         local game_object_components = get_components(o)

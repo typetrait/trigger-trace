@@ -7,6 +7,7 @@ local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
 
 -- "Constants"
 local COLOR_RED = 0xff0000ff
+local COLOR_GREEN = 0xff00ff00
 local COLOR_WHITE = 0xffffffff
 
 -- Config
@@ -19,7 +20,8 @@ local trigger_type_filter_map = {
 }
 
 -- Variables
-local trigger_color = COLOR_RED
+local scene_trigger_color = COLOR_RED
+local trigger_color = COLOR_GREEN
 
 -- Debug
 local debug_game_objects = {}
@@ -27,24 +29,9 @@ local contact_count = 0
 local current_trigger_shape = ""
 local debug_text = ""
 
--- Trigger definitions
-local previously_hit_triggers = {}
-
-local Trigger = {}
-Trigger.__index = Trigger
-
-function Trigger.new(name, shape, type)
-    local self = setmetatable({}, Trigger)
-    self.name = name
-    self.shape = shape
-    self.type = type
-    self.draw = true
-    return self
-end
-
-function Trigger:equals(other)
-    return self.name == other.name and self.shape == other.shape
-end
+local config = {
+    should_render_scene_triggers = true
+}
 
 -- Helper functions
 local function entry_exists(table, entry)
@@ -190,6 +177,50 @@ local function draw_obb(obb, color)
     draw_line(corners[7], corners[8], color)
 end
 
+-- Trigger definitions
+local all_scene_triggers = {}
+local previously_hit_triggers = {}
+
+local Trigger = {}
+Trigger.__index = Trigger
+
+function Trigger.new(name, shape, type)
+    local self = setmetatable({}, Trigger)
+    self.name = name
+    self.shape = shape
+    self.type = type
+    self.draw = true
+    return self
+end
+
+function Trigger.from_game_interact_trigger(game_object, interact_trigger)
+    if not game_object then
+        return nil
+    end
+
+    local trigger_runtime_type = interact_trigger:get_type_definition():get_name()
+    local trigger_display_name = interact_trigger.UniqueName .. "_" .. trigger_runtime_type
+
+    local colliders = get_component(game_object, "via.physics.Colliders")
+
+    local collider_count = colliders:call("get_NumColliders()")
+    for i = 0, collider_count do
+        local collider = colliders:call("getColliders", i)
+        if collider then
+            local collider_shape = collider:call("get_TransformedShape")
+            trigger_shape_name = collider_shape:get_type_definition():get_name()
+            if collider_shape then
+                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. game_object:call("get_Name"), collider_shape, trigger_runtime_type)
+                table.insert(all_scene_triggers, trigger)
+            end
+        end
+    end
+end
+
+function Trigger:equals(other)
+    return self.name == other.name and self.shape == other.shape
+end
+
 local function render_trigger(trigger, color)
     if trigger.shape == nil then
         return
@@ -217,6 +248,46 @@ end
 -- Additional functions
 local function config_allows_trigger_type(type)
     return trigger_type_filter_map[type] ~= nil and trigger_type_filter_map[type]
+end
+
+local function get_scene_triggers()
+    clear_table(all_scene_triggers)
+
+    local scene_manager = sdk.get_native_singleton("via.SceneManager")
+    if not scene_manager then
+        return
+    end
+
+    local scene = sdk.call_native_func(scene_manager, sdk.find_type_definition("via.SceneManager"), "get_CurrentScene")
+    if not scene then
+        return
+    end
+
+    local transform = scene:call("get_FirstTransform")
+    while transform do
+        local game_object = transform:call("get_GameObject")
+        if game_object then
+            local interact_holder = get_component(game_object, "chainsaw.InteractHolder")
+            local colliders = get_component(game_object, "via.physics.Colliders")
+
+            if interact_holder and colliders then
+                local trigger_containers = interact_holder:call("get_Triggers")
+
+                if trigger_containers then
+                    for _,t in pairs(trigger_containers) do
+                        local interact_trigger = t:call("get_Trigger")
+                        if interact_trigger then
+                            local trigger = Trigger.from_game_interact_trigger(game_object, interact_trigger)
+                            if trigger then
+                                table.insert(all_scene_triggers, trigger)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        transform = transform:call("get_Next")
+    end
 end
 
 -- Hooks
@@ -274,31 +345,50 @@ sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_metho
     on_pre_trigger_generate_work,
     on_post_trigger_generate_work)
 
+
 re.on_frame(function()
-    if not should_render_triggers then
-        return
+    if config.should_render_scene_triggers then
+        for i,t in ipairs(all_scene_triggers) do
+            if config_allows_trigger_type(t.type) and t.draw then
+                render_trigger(t, scene_trigger_color)
+            end
+        end
     end
 
-    for i,t in ipairs(previously_hit_triggers) do
-        if config_allows_trigger_type(t.type) and t.draw then
-            render_trigger(t, trigger_color)
+    if should_render_triggers then
+        for i,t in ipairs(previously_hit_triggers) do
+            if config_allows_trigger_type(t.type) and t.draw then
+                render_trigger(t, trigger_color)
+            end
         end
     end
 end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
-        changed, should_render_triggers = imgui.checkbox("Render Triggers", should_render_triggers)
-
-        if should_render_triggers then
-            changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
-            changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
-            changed, trigger_type_filter_map["InteractTriggerUseItem"] = imgui.checkbox("Use Item", trigger_type_filter_map["InteractTriggerUseItem"])
+        changed, config.should_render_scene_triggers = imgui.checkbox("Scene (All)", config.should_render_scene_triggers)
+        if config.should_render_scene_triggers then
+            imgui.same_line()
+            if imgui.button("Find all triggers", recalc) then
+                get_scene_triggers()
+            end
+            imgui.same_line()
+            if imgui.button("Clear") then 
+                clear_table(all_scene_triggers)
+            end
         end
 
-        imgui.spacing()
-        imgui.spacing()
-        imgui.spacing()
+        changed, should_render_triggers = imgui.checkbox("On Hit (Activated)", should_render_triggers)
+
+        if should_render_triggers or config.should_render_scene_triggers then
+            if imgui.tree_node("Filters") then
+                changed, trigger_type_filter_map["InteractTriggerAreaHit"] = imgui.checkbox("Area Hit", trigger_type_filter_map["InteractTriggerAreaHit"])
+                changed, trigger_type_filter_map["InteractTriggerKey"] = imgui.checkbox("Key", trigger_type_filter_map["InteractTriggerKey"])
+                changed, trigger_type_filter_map["InteractTriggerUseItem"] = imgui.checkbox("Use Item", trigger_type_filter_map["InteractTriggerUseItem"])
+
+                imgui.tree_pop()
+            end
+        end
 
         if imgui.begin_list_box("Triggers hit") then
             for i,t in ipairs(previously_hit_triggers) do

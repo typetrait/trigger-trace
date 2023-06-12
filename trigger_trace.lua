@@ -184,12 +184,13 @@ local previously_hit_triggers = {}
 local Trigger = {}
 Trigger.__index = Trigger
 
-function Trigger.new(name, shape, type)
+function Trigger.new(name, shape, type, instance)
     local self = setmetatable({}, Trigger)
     self.name = name
     self.shape = shape
     self.type = type
     self.draw = true
+    self.instance = instance
     return self
 end
 
@@ -210,7 +211,7 @@ function Trigger.from_game_interact_trigger(game_object, interact_trigger)
             local collider_shape = collider:call("get_TransformedShape")
             trigger_shape_name = collider_shape:get_type_definition():get_name()
             if collider_shape then
-                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. game_object:call("get_Name"), collider_shape, trigger_runtime_type)
+                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. game_object:call("get_Name"), collider_shape, trigger_runtime_type, interact_trigger)
                 table.insert(all_scene_triggers, trigger)
             end
         end
@@ -218,7 +219,7 @@ function Trigger.from_game_interact_trigger(game_object, interact_trigger)
 end
 
 function Trigger:equals(other)
-    return self.name == other.name and self.shape == other.shape
+    return self.instance:call("Equals", other.instance)
 end
 
 local function render_trigger(trigger, color)
@@ -327,7 +328,7 @@ local function on_pre_trigger_generate_work(args)
             local collider_shape = collider:call("get_TransformedShape")
             trigger_shape_name = collider_shape:get_type_definition():get_name()
             if collider_shape then
-                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"), collider_shape, trigger_runtime_type)
+                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"), collider_shape, trigger_runtime_type, current_trigger_activated)
                 if not entry_exists(previously_hit_triggers, trigger) and config_allows_trigger_type(trigger.type) then
                     table.insert(previously_hit_triggers, trigger)
                 end

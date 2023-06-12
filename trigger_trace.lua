@@ -346,6 +346,13 @@ sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_metho
     on_pre_trigger_generate_work,
     on_post_trigger_generate_work)
 
+-- chainsaw.CampaignManager.onStartInGame()
+sdk.hook(sdk.find_type_definition("chainsaw.CampaignManager"):get_method("onStartInGame()"), function(args)
+    clear_table(previously_hit_triggers)
+    clear_table(all_scene_triggers)
+    get_scene_triggers()
+end, function(ret) return ret end)
+
 re.on_frame(function()
     if config.should_render_scene_triggers then
         for i,t in ipairs(all_scene_triggers) do

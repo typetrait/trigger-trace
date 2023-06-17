@@ -6,7 +6,7 @@
 local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
 
 -- "Constants"
-local COLOR_RED = 0xff0000ff
+local COLOR_RED = 0xffff0000
 local COLOR_GREEN = 0xff00ff00
 local COLOR_WHITE = 0xffffffff
 
@@ -23,7 +23,8 @@ local config = {
     scene_trigger_color = COLOR_RED,
     activated_trigger_color = COLOR_GREEN,
     trigger = {
-        should_render_labels = true
+        should_render_labels = true,
+        label_color = COLOR_WHITE
     },
     is_debug = false
 }
@@ -32,6 +33,9 @@ local config = {
 local debug_game_objects = {}
 local contact_count = 0
 local debug_text = ""
+
+-- D2D
+local font = nil
 
 -- Helper functions
 local function entry_exists(table, entry)
@@ -69,7 +73,7 @@ local function get_components(game_object)
     return game_object:call("get_Components"):get_elements()
 end
 
-function euler_to_quat(pitch, yaw, roll)
+local function euler_to_quat(pitch, yaw, roll)
     -- First, convert pitch, yaw, and roll to radians.
     -- pitch = pitch * (pi / 180)
     -- yaw = yaw * (pi / 180)
@@ -94,7 +98,7 @@ end
 
 local function draw_line(p1, p2, color)
     if p1 and p2 then
-        draw.line(p1.x, p1.y, p2.x, p2.y, color)
+        d2d.line(p1.x, p1.y, p2.x, p2.y, 2, color)
     end
 end
 
@@ -238,11 +242,28 @@ local function render_trigger(trigger, color)
 
         local name_label = "TRIGGER (" .. trigger.name .. ")"
         local name_label_pos = draw.world_to_screen(pos)
-        local name_label_bounds = imgui.calc_text_size(name_label)
-    
+        local font_metrics_width, font_metrics_height = font:measure(name_label)
+
         if name_label_pos and config.trigger.should_render_labels then
-            draw.text(name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y, COLOR_WHITE)
+            d2d.text(font, name_label, name_label_pos.x - (font_metrics_width / 2), name_label_pos.y - (font_metrics_height / 2), config.trigger.label_color)
         end
+
+        -- if name_label_pos and config.trigger.should_render_labels then
+        --     d2d.text(font, name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y - (name_label_bounds.y / 2), COLOR_WHITE)
+        -- end
+
+    -- elseif shape_type == "SphereShape" then
+    --     local camera = sdk.get_primary_camera()
+    --     local camera_transform = get_component(camera:call("get_GameObject"), "via.Transform")
+    --     local camera_up = camera_transform:call("get_AxisY")
+
+    --     local center = trigger.shape:call("get_Center")
+    --     local radius = trigger.shape:call("get_Radius")
+    --     local screen_pos_center = draw.world_to_screen(center)
+
+    --     if screen_pos_center then
+    --         d2d.outline_ellipse(screen_pos_center.x, screen_pos_center.y, radius, radius, color)
+    --     end
     end
 end
 
@@ -353,7 +374,11 @@ sdk.hook(sdk.find_type_definition("chainsaw.CampaignManager"):get_method("onStar
     get_scene_triggers()
 end, function(ret) return ret end)
 
-re.on_frame(function()
+local function on_draw()
+    local w, h = font:measure(str)
+    local screen_w, screen_h = d2d.surface_size()
+    -- d2d.outline_ellipse(screen_w / 2, screen_h / 2, screen_w / 2, screen_h / 2, 0xFFFF0000)
+
     if config.should_render_scene_triggers then
         for i,t in ipairs(all_scene_triggers) do
             if config_allows_trigger_type(t.type) and t.draw then
@@ -369,7 +394,40 @@ re.on_frame(function()
             end
         end
     end
-end)
+
+    -- d2d.outline_ellipse(screen_w / 2, screen_h / 2, screen_w / 2, screen_h / 2, 0xFFFF0000)
+    -- if config.should_render_scene_triggers then
+    --     for i,t in ipairs(all_scene_triggers) do
+    --         if config_allows_trigger_type(t.type) and t.draw then
+    --             local shape_type = t.shape:get_type_definition():get_name()
+    --             if shape_type == "SphereShape" then
+    --                 local center = t.shape:call("get_Center")
+    --                 local radius = t.shape:call("get_Radius")
+    --                 local center_screen = draw.world_to_screen(center)
+    --                 d2d.outline_ellipse(center_screen.x, center_screen.y, radius, radius, 0xFFFF0000)
+    --             end
+    --         end
+    --     end
+    -- end
+end
+
+-- re.on_frame(function()
+--     if config.should_render_scene_triggers then
+--         for i,t in ipairs(all_scene_triggers) do
+--             if config_allows_trigger_type(t.type) and t.draw then
+--                 render_trigger(t, config.scene_trigger_color)
+--             end
+--         end
+--     end
+
+--     if config.should_render_activated_triggers then
+--         for i,t in ipairs(previously_hit_triggers) do
+--             if config_allows_trigger_type(t.type) and t.draw then
+--                 render_trigger(t, config.activated_trigger_color)
+--             end
+--         end
+--     end
+-- end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then
@@ -400,6 +458,13 @@ re.on_draw_ui(function()
         if imgui.begin_list_box("Triggers hit") then
             for i,t in ipairs(previously_hit_triggers) do
                 changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
+                if imgui.begin_popup_context_item() then
+                    if imgui.button("Copy Label") then
+                        ext.set_clipboard(t.name)
+                        imgui.close_current_popup()
+                    end
+                    imgui.end_popup()
+                end
             end
             imgui.end_list_box()
         end
@@ -410,8 +475,9 @@ re.on_draw_ui(function()
 
         if imgui.tree_node("Visuals") then
             changed, config.trigger.should_render_labels = imgui.checkbox("Render Labels", config.trigger.should_render_labels)
-            changed, config.scene_trigger_color = imgui.color_edit("Triggers", config.scene_trigger_color)
-            changed, config.activated_trigger_color = imgui.color_edit("Activated Triggers", config.activated_trigger_color)
+            changed, config.trigger.label_color = imgui.color_edit_argb("Labels", config.trigger.label_color)
+            changed, config.scene_trigger_color = imgui.color_edit_argb("Triggers", config.scene_trigger_color)
+            changed, config.activated_trigger_color = imgui.color_edit_argb("Activated Triggers", config.activated_trigger_color)
             imgui.tree_pop()
         end
 
@@ -445,3 +511,8 @@ re.on_draw_ui(function()
     end
     imgui.spacing()
 end)
+
+d2d.register(function()
+    font = d2d.Font.new("Tahoma", 16)
+end,
+on_draw)

@@ -248,10 +248,6 @@ local function render_trigger(trigger, color)
             d2d.text(font, name_label, name_label_pos.x - (font_metrics_width / 2), name_label_pos.y - (font_metrics_height / 2), config.trigger.label_color)
         end
 
-        -- if name_label_pos and config.trigger.should_render_labels then
-        --     d2d.text(font, name_label, name_label_pos.x - (name_label_bounds.x / 2), name_label_pos.y - (name_label_bounds.y / 2), COLOR_WHITE)
-        -- end
-
     -- elseif shape_type == "SphereShape" then
     --     local camera = sdk.get_primary_camera()
     --     local camera_transform = get_component(camera:call("get_GameObject"), "via.Transform")
@@ -291,7 +287,6 @@ local function get_scene_triggers()
         if game_object then
             local interact_holder = get_component(game_object, "chainsaw.InteractHolder")
             local colliders = get_component(game_object, "via.physics.Colliders")
-
             if interact_holder and colliders then
                 local trigger_containers = interact_holder:call("get_Triggers")
 
@@ -375,10 +370,7 @@ sdk.hook(sdk.find_type_definition("chainsaw.CampaignManager"):get_method("onStar
 end, function(ret) return ret end)
 
 local function on_draw()
-    local w, h = font:measure(str)
     local screen_w, screen_h = d2d.surface_size()
-    -- d2d.outline_ellipse(screen_w / 2, screen_h / 2, screen_w / 2, screen_h / 2, 0xFFFF0000)
-
     if config.should_render_scene_triggers then
         for i,t in ipairs(all_scene_triggers) do
             if config_allows_trigger_type(t.type) and t.draw then
@@ -394,40 +386,7 @@ local function on_draw()
             end
         end
     end
-
-    -- d2d.outline_ellipse(screen_w / 2, screen_h / 2, screen_w / 2, screen_h / 2, 0xFFFF0000)
-    -- if config.should_render_scene_triggers then
-    --     for i,t in ipairs(all_scene_triggers) do
-    --         if config_allows_trigger_type(t.type) and t.draw then
-    --             local shape_type = t.shape:get_type_definition():get_name()
-    --             if shape_type == "SphereShape" then
-    --                 local center = t.shape:call("get_Center")
-    --                 local radius = t.shape:call("get_Radius")
-    --                 local center_screen = draw.world_to_screen(center)
-    --                 d2d.outline_ellipse(center_screen.x, center_screen.y, radius, radius, 0xFFFF0000)
-    --             end
-    --         end
-    --     end
-    -- end
 end
-
--- re.on_frame(function()
---     if config.should_render_scene_triggers then
---         for i,t in ipairs(all_scene_triggers) do
---             if config_allows_trigger_type(t.type) and t.draw then
---                 render_trigger(t, config.scene_trigger_color)
---             end
---         end
---     end
-
---     if config.should_render_activated_triggers then
---         for i,t in ipairs(previously_hit_triggers) do
---             if config_allows_trigger_type(t.type) and t.draw then
---                 render_trigger(t, config.activated_trigger_color)
---             end
---         end
---     end
--- end)
 
 re.on_draw_ui(function()
     if imgui.tree_node("Trigger Trace") then

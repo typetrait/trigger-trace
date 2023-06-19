@@ -235,7 +235,6 @@ local function render_trigger(trigger, color)
 
     if shape_type == "BoxShape" then
         local obb = trigger.shape:call("get_Box()")
-
         local pos = obb:call("get_Position")
 
         draw_obb(obb, color)
@@ -247,19 +246,28 @@ local function render_trigger(trigger, color)
         if name_label_pos and config.trigger.should_render_labels then
             d2d.text(font, name_label, name_label_pos.x - (font_metrics_width / 2), name_label_pos.y - (font_metrics_height / 2), config.trigger.label_color)
         end
+    elseif shape_type == "SphereShape" then
+        local camera = sdk.get_primary_camera()
+        local camera_transform = get_component(camera:call("get_GameObject"), "via.Transform")
 
-    -- elseif shape_type == "SphereShape" then
-    --     local camera = sdk.get_primary_camera()
-    --     local camera_transform = get_component(camera:call("get_GameObject"), "via.Transform")
-    --     local camera_up = camera_transform:call("get_AxisY")
+        local camera_joints = camera_transform:call("get_Joints")
+        local camera_joint = camera_joints:get_element(0)
 
-    --     local center = trigger.shape:call("get_Center")
-    --     local radius = trigger.shape:call("get_Radius")
-    --     local screen_pos_center = draw.world_to_screen(center)
+        local camera_joint_rotation = camera_joint:call("get_Rotation")
+        local camera_up = camera_joint_rotation * Vector3f.new(0, 1, 0)
 
-    --     if screen_pos_center then
-    --         d2d.outline_ellipse(screen_pos_center.x, screen_pos_center.y, radius, radius, color)
-    --     end
+        local center = trigger.shape:call("get_Center")
+        local radius = trigger.shape:call("get_Radius")
+
+        local screen_pos_center = draw.world_to_screen(center)
+
+        local top_pos = center + (camera_up:normalized() * radius)
+        local screen_top_pos = draw.world_to_screen(top_pos)
+
+        if screen_top_pos then
+            local radius_2d = (screen_top_pos - screen_pos_center):length()
+            d2d.outline_ellipse(screen_pos_center.x, screen_pos_center.y, radius_2d, radius_2d, color)
+        end
     end
 end
 

@@ -102,6 +102,11 @@ local function draw_line(p1, p2, color)
     end
 end
 
+local function draw_label(label_text, pos, color)
+    local font_metrics_width, font_metrics_height = font:measure(label_text)
+    d2d.text(font, label_text, pos.x - (font_metrics_width / 2), pos.y - (font_metrics_height / 2), color)
+end
+
 local function draw_aabb(aabb, color)
     if aabb == nil then
         return
@@ -223,7 +228,7 @@ function Trigger.from_game_interact_trigger(game_object, interact_trigger)
 end
 
 function Trigger:equals(other)
-    return self.instance:call("Equals", other.instance)
+    return self.shape:call("Equals(System.Object)", other.shape)
 end
 
 local function render_trigger(trigger, color)
@@ -233,18 +238,18 @@ local function render_trigger(trigger, color)
 
     local shape_type = trigger.shape:get_type_definition():get_name()
 
+    local name_label = "TRIGGER (" .. trigger.name .. ")"
+
     if shape_type == "BoxShape" then
         local obb = trigger.shape:call("get_Box()")
         local pos = obb:call("get_Position")
 
         draw_obb(obb, color)
 
-        local name_label = "TRIGGER (" .. trigger.name .. ")"
         local name_label_pos = draw.world_to_screen(pos)
-        local font_metrics_width, font_metrics_height = font:measure(name_label)
 
         if name_label_pos and config.trigger.should_render_labels then
-            d2d.text(font, name_label, name_label_pos.x - (font_metrics_width / 2), name_label_pos.y - (font_metrics_height / 2), config.trigger.label_color)
+            draw_label(name_label, name_label_pos, config.trigger.label_color)
         end
     elseif shape_type == "SphereShape" then
         local camera = sdk.get_primary_camera()
@@ -254,7 +259,11 @@ local function render_trigger(trigger, color)
         local camera_joint = camera_joints:get_element(0)
 
         local camera_joint_rotation = camera_joint:call("get_Rotation")
+
         local camera_up = camera_joint_rotation * Vector3f.new(0, 1, 0)
+
+        local camera_forward = camera_joint_rotation * Vector3f.new(0, 0, 1) -- if z is the forward axis
+        local camera_right = camera_up:cross(camera_forward) -- calculate the 'right' direction
 
         local center = trigger.shape:call("get_Center")
         local radius = trigger.shape:call("get_Radius")
@@ -264,9 +273,51 @@ local function render_trigger(trigger, color)
         local top_pos = center + (camera_up:normalized() * radius)
         local screen_top_pos = draw.world_to_screen(top_pos)
 
-        if screen_top_pos then
+        local right_pos = center + (camera_right:normalized() * radius)
+        local screen_right_pos = draw.world_to_screen(right_pos)
+
+        local game_object = trigger.instance:call("get_Owner")
+
+        if not game_object then
+            return
+        end
+
+        local game_object_transform = get_component(game_object, "via.Transform")
+
+        if screen_top_pos and game_object_transform then
             local radius_2d = (screen_top_pos - screen_pos_center):length()
             d2d.outline_ellipse(screen_pos_center.x, screen_pos_center.y, radius_2d, radius_2d, color)
+
+            local name_label_pos = screen_pos_center
+    
+            if name_label_pos and config.trigger.should_render_labels then
+                draw_label(name_label, name_label_pos, config.trigger.label_color)
+            end
+
+            -- local radius_2d_horizontal = (screen_right_pos - screen_pos_center):length()
+
+            -- local axis_x = game_object_transform:call("get_AxisX"):normalized()
+            -- local axis_y = game_object_transform:call("get_AxisY"):normalized()
+            -- local axis_z = game_object_transform:call("get_AxisZ"):normalized()
+
+            -- local x_axis_end_pos = center + (axis_x * radius)
+            -- local y_axis_end_pos = center + (axis_y * radius)
+            -- local z_axis_end_pos = center + (axis_z * radius)
+
+            -- local x_line_end_2d = draw.world_to_screen(x_axis_end_pos)
+            -- local y_line_end_2d = draw.world_to_screen(y_axis_end_pos)
+            -- local z_line_end_2d = draw.world_to_screen(z_axis_end_pos)
+
+            -- draw_line(screen_pos_center, x_line_end_2d, color)
+            -- draw_line(screen_pos_center, y_line_end_2d, color)
+            -- draw_line(screen_pos_center, z_line_end_2d, color)
+
+            -- local radius_2d_x = (x_line_end_2d - screen_pos_center):length()
+            -- local radius_2d_y = (y_line_end_2d - screen_pos_center):length()
+
+            -- if screen_pos_center then
+            --     d2d.outline_ellipse(screen_pos_center.x, screen_pos_center.y, radius_2d_x, radius_2d_y, color)
+            -- end
         end
     end
 end

@@ -411,7 +411,7 @@ local function get_scene_triggers()
                                         local type_name = character_context:get_type_definition():get_full_name()
 
                                         -- trigger.debug = tostring(args[3]) -- (addr)
-                                        trigger.debug = tostring(args[3])
+                                        trigger.debug = tostring(args[3]) .. " | " .. tostring(args[4]) .. " | " .. tostring(args[5])
                                     end,
                                     function (retval)
                                         -- trigger.debug = tostring(retval)
@@ -463,8 +463,8 @@ local function on_pre_trigger_generate_work(args)
         local collider = game_object_colliders:call("getColliders", i)
         if collider then
             local collider_shape = collider:call("get_TransformedShape")
-            local trigger_shape_name = collider_shape:get_type_definition():get_name()
             if collider_shape then
+                local trigger_shape_name = collider_shape:get_type_definition():get_name()
                 local trigger = Trigger.new(
                     trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"),
                     collider_shape,

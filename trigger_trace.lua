@@ -410,7 +410,7 @@ local function get_scene_triggers()
 
                                         local type_name = character_context:get_type_definition():get_full_name()
 
-                                        -- trigger.debug = tostring(args[3]) -- (addr)
+                                        -- addresses
                                         trigger.debug = tostring(args[3]) .. " | " .. tostring(args[4]) .. " | " .. tostring(args[5])
                                     end,
                                     function (retval)

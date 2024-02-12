@@ -1,6 +1,16 @@
--- Author: alchemistis
+-- Author: typetrait
 -- Provides functionality for rendering in-game triggers.
--- Happy skip/glitch hunting.
+
+-- LSP Type definitions for development
+local TT = require("trigger-trace.types")
+if TT then
+    imgui = TT.REF.imgui
+    d2d = TT.REF.d2d
+    Vector3f = TT.REF.Vector3f
+    Quaternion = TT.REF.Quaternion
+    draw = TT.REF.draw
+    ext = TT.ext
+end
 
 -- Singletons
 local interact_manager = sdk.get_managed_singleton("chainsaw.InteractManager")
@@ -56,7 +66,7 @@ end
 local function get_component(game_object, type_name)
     local t = sdk.typeof(type_name)
 
-    if t == nil then 
+    if not t then
         return nil
     end
 
@@ -93,7 +103,7 @@ local function euler_to_quat(pitch, yaw, roll)
     local y = cp * sy * cr + sp * cy * sr
     local z = cp * cy * sr - sp * sy * cr
 
-    return Quaternion:new(w, x, y, z)
+    return Quaternion.new(w, x, y, z)
 end
 
 local function draw_line(p1, p2, color)
@@ -102,11 +112,16 @@ local function draw_line(p1, p2, color)
     end
 end
 
+---@param label_text string
+---@param pos Vector3f
+---@param color number
 local function draw_label(label_text, pos, color)
     local font_metrics_width, font_metrics_height = font:measure(label_text)
     d2d.text(font, label_text, pos.x - (font_metrics_width / 2), pos.y - (font_metrics_height / 2), color)
 end
 
+---@param aabb any
+---@param color number
 local function draw_aabb(aabb, color)
     if aabb == nil then
         return
@@ -145,8 +160,11 @@ local function draw_aabb(aabb, color)
 
 end
 
+---comment
+---@param obb any
+---@param color number
 local function draw_obb(obb, color)
-    if obb == nil then
+    if not obb then
         return
     end
 
@@ -187,9 +205,19 @@ local function draw_obb(obb, color)
 end
 
 -- Trigger definitions
+---@type Trigger[]
 local all_scene_triggers = {}
+
+---@type Trigger[]
 local previously_hit_triggers = {}
 
+---@class Trigger
+---@field name string
+---@field shape any
+---@field type string
+---@field draw boolean
+---@field instance any
+---@field debug string
 local Trigger = {}
 Trigger.__index = Trigger
 
@@ -200,9 +228,11 @@ function Trigger.new(name, shape, type, instance)
     self.type = type
     self.draw = true
     self.instance = instance
+    self.debug = ""
     return self
 end
 
+---@return Trigger?
 function Trigger.from_game_interact_trigger(game_object, interact_trigger)
     if not game_object then
         return nil
@@ -218,21 +248,30 @@ function Trigger.from_game_interact_trigger(game_object, interact_trigger)
         local collider = colliders:call("getColliders", i)
         if collider then
             local collider_shape = collider:call("get_TransformedShape")
-            trigger_shape_name = collider_shape:get_type_definition():get_name()
+            local trigger_shape_name = collider_shape:get_type_definition():get_name()
             if collider_shape then
-                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. game_object:call("get_Name"), collider_shape, trigger_runtime_type, interact_trigger)
-                table.insert(all_scene_triggers, trigger)
+                local trigger = Trigger.new(
+                    trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. game_object:call("get_Name"),
+                    collider_shape,
+                    trigger_runtime_type,
+                    interact_trigger
+                )
+                return trigger
             end
         end
     end
+
+    return nil
 end
 
 function Trigger:equals(other)
     return self.shape:call("Equals(System.Object)", other.shape)
 end
 
+---@param trigger Trigger
+---@param color any
 local function render_trigger(trigger, color)
-    if trigger.shape == nil then
+    if not trigger.shape then
         return
     end
 
@@ -250,6 +289,9 @@ local function render_trigger(trigger, color)
 
         if name_label_pos and config.trigger.should_render_labels then
             draw_label(name_label, name_label_pos, config.trigger.label_color)
+
+            -- draw_label(tostring(trigger.instance:call("get_Triggered")), Vector3f.new(name_label_pos.x, name_label_pos.y + 15, name_label_pos.z), COLOR_WHITE)
+            draw_label(trigger.debug, Vector3f.new(name_label_pos.x, name_label_pos.y + 15, name_label_pos.z), config.trigger.label_color)
         end
     elseif shape_type == "SphereShape" then
         local camera = sdk.get_primary_camera()
@@ -356,6 +398,26 @@ local function get_scene_triggers()
                             local trigger = Trigger.from_game_interact_trigger(game_object, interact_trigger)
                             if trigger then
                                 table.insert(all_scene_triggers, trigger)
+
+                                sdk.hook_vtable(
+                                    interact_trigger,
+                                    sdk.find_type_definition("chainsaw.InteractTrigger"):get_method("checkEnableType(via.GameObject, chainsaw.CharacterContext, chainsaw.collision.GimmickSensorUserData, System.Boolean)"),
+                                    function (args)
+                                        local game_object = sdk.to_managed_object(args[3])
+                                        local character_context = sdk.to_managed_object(args[4])
+                                        local gimmick_sensor_userdata = sdk.to_managed_object(args[5])
+                                        local unk = args[6]
+
+                                        local type_name = character_context:get_type_definition():get_full_name()
+
+                                        -- trigger.debug = tostring(args[3]) -- (addr)
+                                        trigger.debug = tostring(args[3])
+                                    end,
+                                    function (retval)
+                                        -- trigger.debug = tostring(retval)
+                                        return retval
+                                    end
+                                )
                             end
                         end
                     end
@@ -380,12 +442,12 @@ local function on_pre_trigger_generate_work(args)
     local owner_game_object = sdk.to_managed_object(current_trigger_activated:call("get_Owner()"))
 
     local game_object_colliders = get_component(owner_game_object, "via.physics.Colliders")
-    if game_object_colliders == nil then
+    if not game_object_colliders then
         error("Failed to get via.physics.Colliders component for Game Object")
     end
 
     local game_object_interact_holder = get_component(owner_game_object, "chainsaw.InteractHolder")
-    if game_object_interact_holder == nil then
+    if not game_object_interact_holder then
         error("Failed to get chainsaw.InteractHolder component for Game Object")
     end
 
@@ -401,9 +463,14 @@ local function on_pre_trigger_generate_work(args)
         local collider = game_object_colliders:call("getColliders", i)
         if collider then
             local collider_shape = collider:call("get_TransformedShape")
-            trigger_shape_name = collider_shape:get_type_definition():get_name()
+            local trigger_shape_name = collider_shape:get_type_definition():get_name()
             if collider_shape then
-                local trigger = Trigger.new(trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"), collider_shape, trigger_runtime_type, current_trigger_activated)
+                local trigger = Trigger.new(
+                    trigger_display_name .. " [" .. trigger_shape_name .. "]" .. " @ " .. owner_game_object:call("get_Name"),
+                    collider_shape,
+                    trigger_runtime_type,
+                    current_trigger_activated
+                )
                 if not entry_exists(previously_hit_triggers, trigger) and config_allows_trigger_type(trigger.type) then
                     table.insert(previously_hit_triggers, trigger)
                 end
@@ -417,16 +484,24 @@ local function on_post_trigger_generate_work(ret)
 end
 
 -- chainsaw.InteractTriggerActivated.generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)
-sdk.hook(sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)"),
+sdk.hook(
+    sdk.find_type_definition("chainsaw.InteractTriggerActivated"):get_method("generateWork(chainsaw.InteractTrigger.TargetType, chainsaw.InteractManager.WorkIndex)"),
     on_pre_trigger_generate_work,
-    on_post_trigger_generate_work)
+    on_post_trigger_generate_work
+)
 
 -- chainsaw.CampaignManager.onStartInGame()
-sdk.hook(sdk.find_type_definition("chainsaw.CampaignManager"):get_method("onStartInGame()"), function(args)
-    clear_table(previously_hit_triggers)
-    clear_table(all_scene_triggers)
-    get_scene_triggers()
-end, function(ret) return ret end)
+sdk.hook(
+    sdk.find_type_definition("chainsaw.CampaignManager"):get_method("onStartInGame()"),
+    function(args)
+        clear_table(previously_hit_triggers)
+        clear_table(all_scene_triggers)
+        get_scene_triggers()
+    end,
+    function(ret)
+        return ret
+    end
+)
 
 local function on_draw()
     local screen_w, screen_h = d2d.surface_size()
@@ -452,11 +527,11 @@ re.on_draw_ui(function()
         changed, config.should_render_scene_triggers = imgui.checkbox("Scene (All)", config.should_render_scene_triggers)
         if config.should_render_scene_triggers then
             imgui.same_line()
-            if imgui.button("Find all triggers", recalc) then
+            if imgui.button("Find all triggers") then
                 get_scene_triggers()
             end
             imgui.same_line()
-            if imgui.button("Clear") then 
+            if imgui.button("Clear") then
                 clear_table(all_scene_triggers)
             end
         end
@@ -473,6 +548,20 @@ re.on_draw_ui(function()
             end
         end
 
+        if imgui.begin_list_box("Scene Triggers") then
+            for i,t in ipairs(all_scene_triggers) do
+                changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
+                if imgui.begin_popup_context_item() then
+                    if imgui.button("Copy Label") then
+                        ext.set_clipboard(t.name)
+                        imgui.close_current_popup()
+                    end
+                    imgui.end_popup()
+                end
+            end
+            imgui.end_list_box()
+        end
+
         if imgui.begin_list_box("Triggers hit") then
             for i,t in ipairs(previously_hit_triggers) do
                 changed, t.draw = imgui.checkbox(tostring(i) .. ". " .. t.name, t.draw)
@@ -487,7 +576,7 @@ re.on_draw_ui(function()
             imgui.end_list_box()
         end
 
-        if imgui.button("Clear##1") then 
+        if imgui.button("Clear##1") then
             clear_table(previously_hit_triggers)
         end
 
@@ -530,7 +619,9 @@ re.on_draw_ui(function()
     imgui.spacing()
 end)
 
-d2d.register(function()
-    font = d2d.Font.new("Tahoma", 16)
-end,
-on_draw)
+d2d.register(
+    function()
+        font = d2d.Font.new("Tahoma", 16)
+    end,
+    on_draw
+)

@@ -1,6 +1,8 @@
 # Trigger Trace
-A REFramework script for rendering trigger volumes in Resident Evil 4 (2023).
+A tool for rendering trigger volumes in Resident Evil 4 (2023).
 Originally written to help with speedrun findings.
+
+![Screenshot 01](./assets/screenshot-01.png)
 
 ## Install
 1. Install the [REFramework](https://github.com/praydog/REFramework)

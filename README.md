@@ -4,10 +4,10 @@ Originally written to help with speedrun findings.
 
 ## Features
 
-* Customizable trigger rendering
+### Customizable trigger rendering
 ![Demo Video 01](./assets/tt-demo-01.gif)
 
-* Trigger hit notifications 
+### Trigger hit notifications 
 ![Demo Video 02](./assets/tt-demo-02.gif)
 
 ## Install
